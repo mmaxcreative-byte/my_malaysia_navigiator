@@ -1,0 +1,157 @@
+import 'package:material_ui/material_ui.dart';
+
+import 'models.dart';
+
+/// Arahan pemanduan dalam Bahasa Melayu, dijana daripada jenis
+/// gerakan Mapbox (supaya tidak bergantung pada bahasa API).
+String instructionFor(NavStep step) {
+  final road = step.name.trim();
+  final toRoad = road.isEmpty ? '' : ' ke $road';
+  final dir = _direction(step.modifier);
+
+  switch (step.type) {
+    case 'depart':
+      return road.isEmpty ? 'Mula perjalanan' : 'Mula perjalanan di $road';
+    case 'arrive':
+      if (step.modifier == 'left') return 'Destinasi di sebelah kiri';
+      if (step.modifier == 'right') return 'Destinasi di sebelah kanan';
+      return 'Anda tiba di destinasi';
+    case 'turn':
+      return '${_turnPhrase(step.modifier)}$toRoad';
+    case 'end of road':
+      return 'Di hujung jalan, ${_turnPhrase(step.modifier).toLowerCase()}$toRoad';
+    case 'merge':
+      return dir.isEmpty ? 'Bergabung$toRoad' : 'Bergabung $dir$toRoad';
+    case 'on ramp':
+      return dir.isEmpty
+          ? 'Ambil susur masuk$toRoad'
+          : 'Ambil susur masuk $dir$toRoad';
+    case 'off ramp':
+      return dir.isEmpty
+          ? 'Ambil susur keluar$toRoad'
+          : 'Ambil susur keluar $dir$toRoad';
+    case 'fork':
+      if (step.modifier.contains('left')) return 'Ikut cabang kiri$toRoad';
+      if (step.modifier.contains('right')) return 'Ikut cabang kanan$toRoad';
+      return 'Ikut cabang$toRoad';
+    case 'roundabout':
+    case 'rotary':
+      final exit = step.exit;
+      return exit == null
+          ? 'Masuk bulatan$toRoad'
+          : 'Di bulatan, ambil susur keluar ke-$exit$toRoad';
+    case 'roundabout turn':
+      return 'Di bulatan, ${_turnPhrase(step.modifier).toLowerCase()}$toRoad';
+    case 'exit roundabout':
+    case 'exit rotary':
+      return 'Keluar dari bulatan$toRoad';
+    case 'continue':
+      if (step.modifier == 'uturn') return 'Buat pusingan U$toRoad';
+      return dir.isEmpty || step.modifier == 'straight'
+          ? 'Teruskan$toRoad'
+          : 'Teruskan $dir$toRoad';
+    case 'new name':
+    case 'notification':
+    default:
+      return 'Teruskan$toRoad';
+  }
+}
+
+String _turnPhrase(String modifier) {
+  switch (modifier) {
+    case 'left':
+      return 'Belok kiri';
+    case 'right':
+      return 'Belok kanan';
+    case 'slight left':
+      return 'Belok sedikit ke kiri';
+    case 'slight right':
+      return 'Belok sedikit ke kanan';
+    case 'sharp left':
+      return 'Belok tajam ke kiri';
+    case 'sharp right':
+      return 'Belok tajam ke kanan';
+    case 'uturn':
+      return 'Buat pusingan U';
+    case 'straight':
+      return 'Jalan terus';
+    default:
+      return 'Teruskan';
+  }
+}
+
+String _direction(String modifier) {
+  if (modifier.contains('left')) return 'ke kiri';
+  if (modifier.contains('right')) return 'ke kanan';
+  return '';
+}
+
+/// Ikon untuk setiap jenis gerakan.
+IconData iconFor(NavStep step) {
+  final m = step.modifier;
+  switch (step.type) {
+    case 'arrive':
+      return Icons.flag;
+    case 'depart':
+      return Icons.navigation;
+    case 'roundabout':
+    case 'rotary':
+    case 'roundabout turn':
+    case 'exit roundabout':
+    case 'exit rotary':
+      return Icons.roundabout_left;
+    case 'merge':
+      return Icons.merge;
+    case 'fork':
+      return m.contains('left') ? Icons.fork_left : Icons.fork_right;
+    case 'on ramp':
+    case 'off ramp':
+      return m.contains('left') ? Icons.ramp_left : Icons.ramp_right;
+  }
+  switch (m) {
+    case 'left':
+      return Icons.turn_left;
+    case 'right':
+      return Icons.turn_right;
+    case 'slight left':
+      return Icons.turn_slight_left;
+    case 'slight right':
+      return Icons.turn_slight_right;
+    case 'sharp left':
+      return Icons.turn_sharp_left;
+    case 'sharp right':
+      return Icons.turn_sharp_right;
+    case 'uturn':
+      return Icons.u_turn_right;
+    default:
+      return Icons.straight;
+  }
+}
+
+/// 350 m, 1.2 km, 25 km
+String formatDistance(double meters) {
+  if (meters < 1000) {
+    final rounded = meters < 100
+        ? (meters / 5).round() * 5
+        : (meters / 10).round() * 10;
+    return '$rounded m';
+  }
+  final km = meters / 1000;
+  return km < 10 ? '${km.toStringAsFixed(1)} km' : '${km.round()} km';
+}
+
+/// 1 min, 14 min, 1 j 25 min
+String formatDuration(double seconds) {
+  final totalMin = (seconds / 60).round();
+  if (totalMin < 1) return '1 min';
+  if (totalMin < 60) return '$totalMin min';
+  final h = totalMin ~/ 60;
+  final m = totalMin % 60;
+  return m == 0 ? '$h j' : '$h j $m min';
+}
+
+/// Waktu tiba, contoh: 23:45
+String formatClock(DateTime t) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(t.hour)}:${two(t.minute)}';
+}

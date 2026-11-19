@@ -7,7 +7,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Navigator App</string>
+	<string>MY Navigator</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Lokasi anda diperlukan untuk menunjukkan kedudukan dan memberi arahan navigasi.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

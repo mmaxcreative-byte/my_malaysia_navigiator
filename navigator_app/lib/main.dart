@@ -1,92 +1,31 @@
-import 'package:flutter/material.dart';
-import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
+import 'package:material_ui/material_ui.dart';
+
+import 'config.dart';
+import 'navigation_screen.dart';
 
 void main() {
-  // Masukkan Public Token Mapbox anda di sini nanti
-    MapboxOptions.setAccessToken("pk.eyJ1IjoibW1heC1jcmVhdGl2ZSIsImEiOiJjbXdtZGp2eXQwNDB2MnpxMHpsN3VkNmg3In0.hY_Oosug2VtnJw2HF-VSJg");
+  WidgetsFlutterBinding.ensureInitialized();
+  mb.MapboxOptions.setAccessToken(kMapboxToken);
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'My Malaysia Navigator',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.cyan,
+          brightness: Brightness.dark,
+        ),
+      ),
+      home: const NavigationScreen(),
     );
-      runApp(const MyApp());
-      }
-
-      class MyApp extends StatelessWidget {
-        const MyApp({super.key});
-
-          @override
-            Widget build(BuildContext context) {
-                const String darkMapStyle = MapboxStyles.DARK;
-                    
-                        return MaterialApp(
-                              debugShowCheckedModeBanner: false,
-                                    title: 'My Malaysia Navigator',
-                                          theme: ThemeData(primarySwatch: Colors.blue),
-                                                home: const NavigationScreen(mapStyle: darkMapStyle),
-                                                    );
-                                                      }
-                                                      }
-
-                                                      class NavigationScreen extends StatefulWidget {
-                                                        final String mapStyle;
-                                                          const NavigationScreen({super.key, required this.mapStyle});
-
-                                                            @override
-                                                              State<NavigationScreen> createState() => _NavigationScreenState();
-                                                              }
-
-                                                              class _NavigationScreenState extends State<NavigationScreen> {
-                                                                mapboxMapLoaded(MapboxMap mapboxMap) async {
-                                                                    // Tetapkan lokasi awal (contoh: Kuala Lumpur / Lebuhraya)
-                                                                        mapboxMap.setCamera(CameraOptions(
-                                                                              center: Point(coordinates: Position(101.6869, 3.1390)),
-                                                                                    zoom: 14.0,
-                                                                                          pitch: 45.0, // Sudut pandangan 3D
-                                                                                              ));
-                                                                                                }
-
-                                                                                                  @override
-                                                                                                    Widget build(BuildContext context) {
-                                                                                                        return Scaffold(
-                                                                                                              body: Stack(
-                                                                                                                      children: [
-                                                                                                                                // Paparan Peta Mapbox
-                                                                                                                                          MapWidget(
-                                                                                                                                                      
-                                                                                                                                                                  cameraOptions: CameraOptions(
-                                                                                                                                                                                center: Point(coordinates: Position(101.6869, 3.1390)),
-                                                                                                                                                                                              zoom: 14.0,
-                                                                                                                                                                                                          ),
-                                                                                                                                                                                                                      styleUri: widget.mapStyle,
-                                                                                                                                                                                                                                  onMapCreated: mapboxMapLoaded,
-                                                                                                                                                                                                                                            ),
-                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                // Kotak ETA / Panduan di Bawah (Contoh UI)
-                                                                                                                                                                                                                                                                          Positioned(
-                                                                                                                                                                                                                                                                                      bottom: 30,
-                                                                                                                                                                                                                                                                                                  left: 20,
-                                                                                                                                                                                                                                                                                                              right: 20,
-                                                                                                                                                                                                                                                                                                                          child: Container(
-                                                                                                                                                                                                                                                                                                                                        padding: const EdgeInsets.all(16),
-                                                                                                                                                                                                                                                                                                                                                      decoration: BoxDecoration(
-                                                                                                                                                                                                                                                                                                                                                                      color: Colors.black87,
-                                                                                                                                                                                                                                                                                                                                                                                      borderRadius: BorderRadius.circular(16),
-                                                                                                                                                                                                                                                                                                                                                                                                      border: Border.all(color: Colors.cyanAccent, width: 1.5),
-                                                                                                                                                                                                                                                                                                                                                                                                                    ),
-                                                                                                                                                                                                                                                                                                                                                                                                                                  child: const Row(
-                                                                                                                                                                                                                                                                                                                                                                                                                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                  children: [
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    Column(
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            children: [
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  Text("ETA: 14 min", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        Text("Jalan Duta -> KLCC", style: TextStyle(color: Colors.grey, fontSize: 14)),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ],
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                Icon(Icons.navigation, color: Colors.cyanAccent, size: 40),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ],
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              ),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            ],
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ),
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      );
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        }
+  }
+}
