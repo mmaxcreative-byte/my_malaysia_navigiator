@@ -52,4 +52,51 @@ void main() {
     final off = distanceToPolyline(const LatLng(3.0005, 101.005), line);
     expect(off, closeTo(55.6, 2));
   });
+
+  test('suara: jarak disebut', () {
+    expect(spokenDistance(60), '60 meter');
+    expect(spokenDistance(340), '350 meter');
+    expect(spokenDistance(1500), '1 setengah kilometer');
+    expect(spokenDistance(2000), '2 kilometer');
+    expect(spokenAhead(_step('turn', 'right', 'Jalan Ampang'), 300),
+        'Dalam 300 meter, belok kanan ke Jalan Ampang');
+  });
+
+  test('kod polyline (contoh rasmi Google)', () {
+    expect(
+      encodePolyline(const [
+        LatLng(38.5, -120.2),
+        LatLng(40.7, -120.95),
+        LatLng(43.252, -126.453),
+      ]),
+      '_p~iF~ps|U_ulLnnqC_mqNvxq`@',
+    );
+  });
+
+  test('kemajuan laluan', () {
+    final route = NavRoute(
+      distance: 2000,
+      duration: 200,
+      coordinates: const [
+        LatLng(3.0, 101.0),
+        LatLng(3.0, 101.009),
+        LatLng(3.009, 101.009),
+      ],
+      steps: [
+        _step('depart'),
+        NavStep(
+          type: 'turn', modifier: 'left', name: '', distance: 1000,
+          duration: 100, location: const LatLng(3.0, 101.009)),
+        NavStep(
+          type: 'arrive', modifier: '', name: '', distance: 0,
+          duration: 0, location: const LatLng(3.009, 101.009)),
+      ],
+    );
+    expect(route.stepAlong.length, 3);
+    expect(route.stepAlong[1], closeTo(999, 5));
+    final snap = snapToLine(const LatLng(3.0002, 101.004), route.coordinates,
+        route.cumulative);
+    expect(snap.segment, 0);
+    expect(snap.along, closeTo(444, 5));
+  });
 }

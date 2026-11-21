@@ -3,21 +3,27 @@
 Aplikasi navigasi percuma untuk Malaysia, dibina dengan Flutter + Mapbox.
 
 ## Ciri-ciri
-- Peta gelap dengan lokasi semasa anda (titik biru berdenyut)
-- Carian destinasi di Malaysia, termasuk tempat terkenal (KLCC, Mid Valley, dll.)
-- Laluan memandu dengan trafik semasa, dilukis di peta
-- Masa perjalanan, jarak dan waktu tiba yang sebenar
-- Arahan belokan demi belokan dalam Bahasa Melayu
-- Kamera ikut kereta semasa navigasi (3D), butang "pusat semula"
-- Kira semula laluan secara automatik jika tersalah jalan
-- Notis "Anda telah tiba"
+- Peta navigasi siang/malam (auto ikut waktu, atau pilih sendiri)
+- Lapisan trafik & insiden langsung di peta
+- Laluan diwarnakan ikut kesesakan (biru lancar, oren perlahan, merah sesak)
+- Amaran insiden di hadapan: kemalangan, kerja jalan, jalan ditutup, cuaca/banjir
+- Arahan suara Bahasa Melayu (sandaran: suara Indonesia jika BM tiada)
+- Panduan lorong (anak panah lorong) bila data tersedia
+- Laju semasa + had laju (bila data tersedia)
+- Cari stesen minyak berdekatan atau di sepanjang laluan, dan singgah
+- Skrin kekal menyala semasa aplikasi dibuka
+- Susun atur khas untuk telefon melintang (landscape)
+- Kira semula laluan automatik jika tersalah jalan
 
 ## Struktur kod (`navigator_app/lib`)
 | Fail | Fungsi |
 |---|---|
 | `main.dart` | Titik mula aplikasi |
 | `config.dart` | Token Mapbox, gaya peta, lokasi lalai |
-| `navigation_screen.dart` | Skrin utama: peta, carian, navigasi |
+| `navigation_screen.dart` | Skrin utama: peta, carian, navigasi, suara |
+| `widgets.dart` | Komponen paparan (kad arahan, lorong, laju, ringkasan) |
+| `voice.dart` | Suara arahan (Text-to-Speech) |
+| `app_theme.dart` | Tema siang/malam |
 | `mapbox_api.dart` | Panggilan API carian & laluan Mapbox |
 | `instructions_ms.dart` | Arahan Bahasa Melayu & format jarak/masa |
 | `geo_utils.dart` | Kiraan jarak (haversine, terkeluar laluan) |

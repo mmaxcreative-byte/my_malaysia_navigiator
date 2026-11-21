@@ -1,6 +1,7 @@
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
 import 'package:material_ui/material_ui.dart';
 
+import 'app_theme.dart';
 import 'config.dart';
 import 'navigation_screen.dart';
 
@@ -15,17 +16,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'My Malaysia Navigator',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.cyan,
-          brightness: Brightness.dark,
-        ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: nightMode,
+      builder: (context, night, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'My Malaysia Navigator',
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        themeMode: night ? ThemeMode.dark : ThemeMode.light,
+        home: const NavigationScreen(),
       ),
-      home: const NavigationScreen(),
     );
   }
 }

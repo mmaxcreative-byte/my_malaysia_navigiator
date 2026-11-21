@@ -13,6 +13,7 @@ String instructionFor(NavStep step) {
     case 'depart':
       return road.isEmpty ? 'Mula perjalanan' : 'Mula perjalanan di $road';
     case 'arrive':
+      if (step.waypointArrival) return 'Tiba di hentian';
       if (step.modifier == 'left') return 'Destinasi di sebelah kiri';
       if (step.modifier == 'right') return 'Destinasi di sebelah kanan';
       return 'Anda tiba di destinasi';
@@ -154,4 +155,107 @@ String formatDuration(double seconds) {
 String formatClock(DateTime t) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(t.hour)}:${two(t.minute)}';
+}
+
+
+/// Huruf pertama kecil (untuk sambung ayat: "Dalam 300 meter, belok kiri").
+String lowerFirst(String s) =>
+    s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
+
+/// Jarak untuk disebut oleh suara: "300 meter", "1 setengah kilometer".
+String spokenDistance(double meters) {
+  if (meters < 1000) {
+    final rounded = meters < 100
+        ? ((meters / 10).round() * 10).clamp(10, 100)
+        : (meters / 50).round() * 50;
+    return '$rounded meter';
+  }
+  final halves = (meters / 500).round(); // gandaan 0.5 km
+  final whole = halves ~/ 2;
+  final half = halves.isOdd;
+  if (whole == 0) return 'setengah kilometer';
+  return half ? '$whole setengah kilometer' : '$whole kilometer';
+}
+
+/// Arahan suara sebelum gerakan: "Dalam 300 meter, belok kiri ke Jalan Duta".
+String spokenAhead(NavStep step, double meters) =>
+    'Dalam ${spokenDistance(meters)}, ${lowerFirst(instructionFor(step))}';
+
+/// Nama insiden dalam Bahasa Melayu.
+String incidentLabel(String type) {
+  switch (type) {
+    case 'accident':
+      return 'Kemalangan';
+    case 'congestion':
+      return 'Kesesakan';
+    case 'construction':
+      return 'Kerja jalan';
+    case 'disabled_vehicle':
+      return 'Kenderaan rosak';
+    case 'lane_restriction':
+      return 'Lorong ditutup';
+    case 'road_closure':
+      return 'Jalan ditutup';
+    case 'road_hazard':
+      return 'Bahaya di jalan';
+    case 'weather':
+      return 'Cuaca buruk / banjir';
+    case 'planned_event':
+      return 'Acara di jalan';
+    case 'mass_transit':
+      return 'Gangguan pengangkutan awam';
+    default:
+      return 'Insiden jalan';
+  }
+}
+
+IconData incidentIcon(String type) {
+  switch (type) {
+    case 'accident':
+      return Icons.car_crash;
+    case 'congestion':
+      return Icons.traffic;
+    case 'construction':
+      return Icons.construction;
+    case 'disabled_vehicle':
+      return Icons.car_repair;
+    case 'road_closure':
+      return Icons.block;
+    case 'weather':
+      return Icons.flood;
+    default:
+      return Icons.warning_amber_rounded;
+  }
+}
+
+/// Ikon anak panah untuk satu arah lorong.
+IconData laneIcon(String indication) {
+  switch (indication) {
+    case 'left':
+      return Icons.turn_left;
+    case 'right':
+      return Icons.turn_right;
+    case 'slight left':
+      return Icons.turn_slight_left;
+    case 'slight right':
+      return Icons.turn_slight_right;
+    case 'sharp left':
+      return Icons.turn_sharp_left;
+    case 'sharp right':
+      return Icons.turn_sharp_right;
+    case 'uturn':
+      return Icons.u_turn_right;
+    default:
+      return Icons.straight;
+  }
+}
+
+/// Pilih arah lorong yang paling sesuai untuk dipaparkan.
+String laneDisplayIndication(LaneInfo lane, String maneuverModifier) {
+  final v = lane.validIndication;
+  if (v != null && v.isNotEmpty) return v;
+  if (lane.valid && lane.indications.contains(maneuverModifier)) {
+    return maneuverModifier;
+  }
+  return lane.indications.isEmpty ? 'straight' : lane.indications.first;
 }
