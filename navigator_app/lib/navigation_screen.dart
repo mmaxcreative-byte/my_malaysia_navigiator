@@ -278,6 +278,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _fuelManager = await map.annotations.createCircleAnnotationManager();
       _markerManager = await map.annotations.createCircleAnnotationManager();
     } catch (_) {}
+    try {
+      // Buang pembaris jarak di atas kiri (tidak berguna semasa memandu).
+      await map.scaleBar.updateSettings(mb.ScaleBarSettings(enabled: false));
+    } catch (_) {}
     await _enablePuck();
     final pos = _myPos;
     if (pos != null) await _flyTo(pos, zoom: 15);

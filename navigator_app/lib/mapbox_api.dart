@@ -30,11 +30,68 @@ class MapboxApi {
   // -----------------------------------------------------------------------
 
   /// Cari tempat di Malaysia (termasuk POI seperti KLCC, Mid Valley).
+  ///
+  /// Cara kerja (lebih mirip Google):
+  /// 1. Cari berhampiran anda DAN di seluruh Malaysia serentak.
+  /// 2. Jika tiada hasil yang sepadan dengan SEMUA perkataan (contoh
+  ///    "bank islam banting"), anggap perkataan terakhir ialah nama tempat
+  ///    ("banting") dan cari "bank islam" di sekitar tempat itu.
+  /// 3. Susun ikut berapa banyak perkataan yang sepadan, kemudian jarak.
   Future<List<PlaceResult>> search(String query, {LatLng? near}) async {
+    final tokens = _tokens(query);
+    final batches = await Future.wait([
+      _forward(query, near: near),
+      if (near != null)
+        _forward(query).catchError((Object _) => <PlaceResult>[]),
+    ]);
+    final scores = <PlaceResult, double>{};
+    void addAll(Iterable<PlaceResult> list, {double minScore = 0}) {
+      for (final p in list) {
+        if (scores.keys.any((q) => _samePlace(p, q))) continue;
+        final sc = _score(p, tokens);
+        scores[p] = sc < minScore ? minScore : sc;
+      }
+    }
+
+    for (final b in batches) {
+      addAll(b);
+    }
+
+    final fullMatch = scores.values.any((sc) => sc >= tokens.length);
+    if (tokens.length >= 2 && !fullMatch) {
+      for (final split in const [1, 2]) {
+        if (tokens.length <= split) break;
+        final where = tokens.sublist(tokens.length - split).join(' ');
+        final what = tokens.sublist(0, tokens.length - split).join(' ');
+        final area = await _locality(where);
+        if (area == null) continue;
+        final nearArea = await _forward(what, near: area.location)
+            .catchError((Object _) => <PlaceResult>[]);
+        final within = nearArea
+            .where((p) => distanceBetween(p.location, area.location) < 25000)
+            .toList();
+        if (within.isEmpty) continue;
+        // Hasil di kawasan itu dianggap sepadan dengan nama tempat.
+        addAll(within, minScore: tokens.length - 0.5);
+        break;
+      }
+    }
+
+    final list = scores.keys.toList()
+      ..sort((a, b) {
+        final byScore = scores[b]!.compareTo(scores[a]!);
+        if (byScore != 0 || near == null) return byScore;
+        return distanceBetween(near, a.location)
+            .compareTo(distanceBetween(near, b.location));
+      });
+    return list.take(10).toList();
+  }
+
+  Future<List<PlaceResult>> _forward(String query, {LatLng? near}) async {
     final params = <String, String>{
       'q': query,
       'country': 'MY',
-      'limit': '8',
+      'limit': '10',
       'access_token': token,
     };
     if (near != null) params['proximity'] = _lngLat(near);
@@ -43,6 +100,38 @@ class MapboxApi {
     );
     return _parsePlaces(json);
   }
+
+  /// Cari bandar/kawasan (contoh "Banting") untuk dijadikan pusat carian.
+  Future<PlaceResult?> _locality(String name) async {
+    try {
+      final json = await _getJson(Uri.https(_host, '/search/geocode/v6/forward', {
+        'q': name,
+        'country': 'MY',
+        'types': 'place,locality,district,neighborhood',
+        'limit': '1',
+        'access_token': token,
+      }));
+      final list = _parsePlaces(json);
+      return list.isEmpty ? null : list.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static List<String> _tokens(String q) => q
+      .toLowerCase()
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((t) => t.length >= 2)
+      .toList();
+
+  /// Bilangan perkataan carian yang ada dalam nama atau alamat.
+  static double _score(PlaceResult p, List<String> tokens) {
+    final text = '${p.name} ${p.address}'.toLowerCase();
+    return tokens.where(text.contains).length.toDouble();
+  }
+
+  static bool _samePlace(PlaceResult a, PlaceResult b) =>
+      a.name == b.name && distanceBetween(a.location, b.location) < 50;
 
   /// Cari stesen minyak. Jika [routeAhead] diberi, cari di sepanjang
   /// laluan (lencongan maksimum ~5 minit); jika tidak, cari berhampiran.
