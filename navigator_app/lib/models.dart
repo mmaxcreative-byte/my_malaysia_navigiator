@@ -55,6 +55,8 @@ class NavStep {
     this.exit,
     this.lanes = const [],
     this.waypointArrival = false,
+    this.destinations = '',
+    this.exitNumber,
   });
 
   /// Jenis gerakan Mapbox: depart, turn, arrive, roundabout, dll.
@@ -83,6 +85,12 @@ class NavStep {
 
   /// Tiba di hentian (bukan destinasi akhir).
   final bool waypointArrival;
+
+  /// Nama destinasi pada papan tanda, contoh "Skudai, Johor Bahru".
+  final String destinations;
+
+  /// Nombor susur keluar lebuh raya pada papan tanda, contoh "235".
+  final String? exitNumber;
 }
 
 /// Insiden di sepanjang laluan (kemalangan, kerja jalan, banjir, dll.).

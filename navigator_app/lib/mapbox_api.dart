@@ -381,7 +381,21 @@ class MapboxApi {
       exit: (m['exit'] as num?)?.toInt(),
       lanes: lanes,
       waypointArrival: waypoint && type == 'arrive',
+      destinations: _joinText(s['destinations']),
+      exitNumber: _firstExit(s['exits']),
     );
+  }
+
+  static String _joinText(Object? v) {
+    if (v is String) return v.trim();
+    if (v is List) return v.map((e) => e.toString()).join(', ').trim();
+    return '';
+  }
+
+  static String? _firstExit(Object? v) {
+    final text = _joinText(v);
+    if (text.isEmpty) return null;
+    return text.split(RegExp(r'[;,]')).first.trim();
   }
 
   // -----------------------------------------------------------------------

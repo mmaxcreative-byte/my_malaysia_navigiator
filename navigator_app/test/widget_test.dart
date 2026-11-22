@@ -99,4 +99,21 @@ void main() {
     expect(snap.segment, 0);
     expect(snap.along, closeTo(444, 5));
   });
+
+  test('papan tanda & bar ETA', () {
+    const sign = NavStep(
+      type: 'off ramp', modifier: 'slight left', name: '', distance: 500,
+      duration: 30, location: LatLng(1.5, 103.6),
+      destinations: 'E2: Skudai, Johor Bahru', exitNumber: '235');
+    expect(signTitle(sign), 'Skudai / Johor Bahru');
+    expect(signRoute(sign), 'E2');
+    expect(signTitle(_step('turn', 'left', 'Jalan Duta')),
+        'Belok kiri ke Jalan Duta');
+    expect(formatClock12(DateTime(2026, 1, 1, 16, 25)), ('4:25', 'PTG'));
+    expect(formatClock12(DateTime(2026, 1, 1, 0, 5)), ('12:05', 'PG'));
+    expect(durationParts(14 * 60), ('14', 'min'));
+    expect(durationParts(85 * 60), ('1:25', 'jam'));
+    expect(distanceParts(8400), ('8.4', 'km'));
+    expect(distanceParts(350), ('350', 'm'));
+  });
 }

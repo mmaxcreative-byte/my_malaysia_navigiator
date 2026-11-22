@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
@@ -12,6 +13,7 @@ import 'geo_utils.dart';
 import 'instructions_ms.dart';
 import 'mapbox_api.dart';
 import 'models.dart';
+import 'puck.dart';
 import 'voice.dart';
 import 'widgets.dart';
 
@@ -44,8 +46,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // Tema
   ThemePref _themePref = ThemePref.auto;
   late bool _night;
-  late final String _initialStyle;
-  late String _currentStyle;
+  bool _show3d = true;
+  Uint8List? _arrowPuck;
   Timer? _themeTimer;
 
   // Susun atur (dikemas kini dalam build)
@@ -101,8 +103,6 @@ class _NavigationScreenState extends State<NavigationScreen> {
   void initState() {
     super.initState();
     _night = _computeNight(); // sama dengan nilai awal nightMode
-    _initialStyle = _night ? kStyleNight : kStyleDay;
-    _currentStyle = _initialStyle;
     _themeTimer =
         Timer.periodic(const Duration(minutes: 1), (_) => _applyTheme());
     _initVoice();
@@ -164,26 +164,22 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final night = _computeNight();
     if (night != _night && mounted) setState(() => _night = night);
     nightMode.value = night;
-    final uri = night ? kStyleNight : kStyleDay;
-    if (uri == _currentStyle) return;
-    _currentStyle = uri;
-    try {
-      await _map?.style.setStyleURI(uri);
-    } catch (_) {}
+    await _applyMapLook();
     // Warna laluan berbeza ikut tema.
     final route = _route;
     if (route != null) await _drawRoute(route);
   }
 
-  void _cycleTheme() {
-    final next = ThemePref.values[(_themePref.index + 1) % 3];
-    setState(() => _themePref = next);
-    _toast(switch (next) {
-      ThemePref.auto => 'Tema: Auto (siang 7 pagi – 7 malam)',
-      ThemePref.day => 'Tema: Siang',
-      ThemePref.night => 'Tema: Malam',
-    });
-    _applyTheme();
+  /// Peta Standard: pencahayaan siang/malam dan bangunan 3D.
+  Future<void> _applyMapLook() async {
+    final style = _map?.style;
+    if (style == null) return;
+    try {
+      await style.setStyleImportConfigProperty(
+          'basemap', 'lightPreset', _night ? 'night' : 'day');
+      await style.setStyleImportConfigProperty(
+          'basemap', 'show3dObjects', _show3d);
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------------------
@@ -238,13 +234,31 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _enablePuck() async {
     final map = _map;
     if (map == null || !_locationReady) return;
+    // Ikon anak panah (seperti Waze) yang berpusing ikut arah kenderaan.
+    _arrowPuck ??= await buildArrowPuck();
+    final arrow = _arrowPuck;
     try {
       await map.location.updateSettings(mb.LocationComponentSettings(
         enabled: true,
-        pulsingEnabled: true,
+        pulsingEnabled: false,
+        showAccuracyRing: false,
         puckBearingEnabled: true,
+        puckBearing: mb.PuckBearing.COURSE,
+        locationPuck: arrow == null
+            ? null
+            : mb.LocationPuck(
+                locationPuck2D: mb.LocationPuck2D(bearingImage: arrow),
+              ),
       ));
-    } catch (_) {}
+    } catch (_) {
+      // Sandaran: ikon lalai Mapbox.
+      try {
+        await map.location.updateSettings(mb.LocationComponentSettings(
+          enabled: true,
+          puckBearingEnabled: true,
+        ));
+      } catch (_) {}
+    }
   }
 
   void _onPosition(geo.Position p) {
@@ -289,6 +303,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
   /// Dipanggil setiap kali gaya peta siap dimuatkan (termasuk tukar tema).
   Future<void> _onStyleLoaded() async {
+    await _applyMapLook();
     await _enablePuck();
     final route = _route;
     if (route != null) await _drawRoute(route);
@@ -390,7 +405,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       case 'severe':
         return 0xFF8B0000;
       default:
-        return _night ? 0xFF4FC3F7 : 0xFF1A73E8;
+        return _night ? 0xFF00E5FF : 0xFF00A5D6;
     }
   }
 
@@ -407,11 +422,21 @@ class _NavigationScreenState extends State<NavigationScreen> {
             coordinates: pts.map((c) => mb.Position(c.lng, c.lat)).toList(),
           );
 
+      final all = line(coords);
       final options = <mb.PolylineAnnotationOptions>[
+        // Cahaya lembut di sekeliling laluan.
         mb.PolylineAnnotationOptions(
-          geometry: line(coords),
-          lineColor: _night ? 0xFF01579B : 0xFF0B3D91,
-          lineWidth: 12,
+          geometry: all,
+          lineColor: 0xFF00E5FF,
+          lineWidth: 22,
+          lineOpacity: _night ? 0.28 : 0.18,
+          lineBlur: 6,
+        ),
+        // Garis tepi gelap.
+        mb.PolylineAnnotationOptions(
+          geometry: all,
+          lineColor: _night ? 0xFF003B4D : 0xFF005A73,
+          lineWidth: 13,
         ),
       ];
 
@@ -425,7 +450,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           options.add(mb.PolylineAnnotationOptions(
             geometry: line(coords.sublist(start, i + 1)),
             lineColor: _congestionColor(level(start)),
-            lineWidth: 7,
+            lineWidth: 8,
           ));
           start = i;
         }
@@ -968,7 +993,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         }
       },
       child: mb.MapWidget(
-        styleUri: _initialStyle,
+        styleUri: kMapStyle,
         viewport: mb.CameraViewportState(
           center: _pt(const LatLng(kDefaultLat, kDefaultLng)),
           zoom: 12,
@@ -1068,7 +1093,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InstructionCard(
+          ManeuverBanner(
             step: step,
             distance: _distToManeuver,
             next: next,
@@ -1136,6 +1161,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         voiceOn: _voiceOn,
         onToggleVoice: _toggleVoice,
         onFuel: _findFuel,
+        onSettings: _openSettings,
         onEnd: _stopNavigation,
         compact: _landscape,
       );
@@ -1155,17 +1181,31 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
   }
 
-  /// Laju (kiri) dan butang peta (kanan).
+  /// Nama jalan semasa (jalan yang sedang dilalui).
+  String get _currentRoadName {
+    final route = _route;
+    if (!_navigating || route == null || _stepIndex <= 0) return '';
+    return route.steps[_stepIndex - 1].name.trim();
+  }
+
+  /// Nama jalan (tengah) dan butang/laju peta (kanan).
   Widget _buildMapControls() {
     final recenter = _navigating && !_followUser;
+    final road = _currentRoadName;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (_navigating)
-          SpeedBadge(speedKmh: _speedKmh, limitKmh: _limitKmh),
-        const Spacer(),
+        Expanded(
+          child: road.isEmpty
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.only(left: 76, right: 8),
+                  child: Center(child: RoadNamePill(name: road)),
+                ),
+        ),
         Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (_navigating && _landscape) ...[
               MapRoundButton(
@@ -1181,25 +1221,96 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ),
               const SizedBox(height: 10),
             ],
-            MapRoundButton(
-              tooltip: 'Tema siang/malam',
-              icon: switch (_themePref) {
-                ThemePref.auto => Icons.brightness_auto,
-                ThemePref.day => Icons.light_mode,
-                ThemePref.night => Icons.dark_mode,
-              },
-              onPressed: _cycleTheme,
-            ),
-            const SizedBox(height: 10),
-            MapRoundButton(
-              tooltip: recenter ? 'Pusat semula' : 'Lokasi saya',
-              icon: recenter ? Icons.navigation : Icons.my_location,
-              active: recenter,
-              onPressed: _onLocatePressed,
-            ),
+            if (!_navigating) ...[
+              MapRoundButton(
+                tooltip: 'Tetapan peta',
+                icon: switch (_themePref) {
+                  ThemePref.auto => Icons.brightness_auto,
+                  ThemePref.day => Icons.light_mode,
+                  ThemePref.night => Icons.dark_mode,
+                },
+                onPressed: _openSettings,
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (recenter || !_navigating) ...[
+              MapRoundButton(
+                tooltip: recenter ? 'Pusat semula' : 'Lokasi saya',
+                icon: recenter ? Icons.navigation : Icons.my_location,
+                active: recenter,
+                onPressed: _onLocatePressed,
+              ),
+              if (_navigating) const SizedBox(height: 10),
+            ],
+            if (_navigating)
+              SpeedBadge(speedKmh: _speedKmh, limitKmh: _limitKmh),
           ],
         ),
       ],
+    );
+  }
+
+  /// Tetapan: tema, suara, bangunan 3D.
+  Future<void> _openSettings() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Tetapan', style: Theme.of(ctx).textTheme.titleLarge),
+                const SizedBox(height: 12),
+                const Text('Tema peta'),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final t in ThemePref.values)
+                      ChoiceChip(
+                        label: Text(switch (t) {
+                          ThemePref.auto => 'Auto',
+                          ThemePref.day => 'Siang',
+                          ThemePref.night => 'Malam',
+                        }),
+                        selected: _themePref == t,
+                        onSelected: (_) {
+                          setState(() => _themePref = t);
+                          setSheet(() {});
+                          _applyTheme();
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Suara arahan'),
+                  value: _voiceOn,
+                  onChanged: (_) {
+                    _toggleVoice();
+                    setSheet(() {});
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Bangunan 3D'),
+                  value: _show3d,
+                  onChanged: (v) {
+                    setState(() => _show3d = v);
+                    setSheet(() {});
+                    _applyMapLook();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 

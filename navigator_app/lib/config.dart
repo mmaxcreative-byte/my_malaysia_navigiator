@@ -11,9 +11,8 @@ const String kMapboxToken = String.fromEnvironment(
       'pk.eyJ1IjoibW1heC1jcmVhdGl2ZSIsImEiOiJjbXdtZGp2eXQwNDB2MnpxMHpsN3VkNmg3In0.hY_Oosug2VtnJw2HF-VSJg',
 );
 
-/// Gaya peta navigasi Mapbox — termasuk lapisan trafik & insiden langsung.
-const String kStyleDay = 'mapbox://styles/mapbox/navigation-day-v1';
-const String kStyleNight = 'mapbox://styles/mapbox/navigation-night-v1';
+/// Gaya peta Mapbox Standard: bangunan 3D, pencahayaan siang/malam.
+const String kMapStyle = 'mapbox://styles/mapbox/standard';
 
 /// Lokasi lalai jika GPS belum tersedia: Kuala Lumpur.
 const double kDefaultLat = 3.1390;

@@ -4,7 +4,15 @@ import 'instructions_ms.dart';
 import 'models.dart';
 
 const Color kNavGreen = Color(0xFF0F7B5F);
-const Color kNavGreenDark = Color(0xFF0A5C47);
+
+/// Warna panel navigasi (gelap, seperti Sygic/Google Maps).
+const Color kNavPanel = Color(0xF21E2228);
+
+/// Biru papan tanda lebuh raya.
+const Color kSignBlue = Color(0xFF1558B0);
+
+/// Biru terang untuk lorong yang patut dimasuki.
+const Color kLaneActive = Color(0xFF4FC3F7);
 
 /// Kad asas dengan bucu bulat, ikut tema siang/malam.
 class PanelCard extends StatelessWidget {
@@ -65,144 +73,6 @@ class MapRoundButton extends StatelessWidget {
   }
 }
 
-/// Kad arahan belokan semasa navigasi (dengan lorong jika ada).
-class InstructionCard extends StatelessWidget {
-  const InstructionCard({
-    super.key,
-    required this.step,
-    required this.distance,
-    this.next,
-    this.compact = false,
-  });
-
-  final NavStep step;
-  final double distance;
-
-  /// Saiz kecil (untuk landscape) supaya tidak menutup peta.
-  final bool compact;
-
-  /// Gerakan seterusnya — hanya diberi jika ia sangat dekat.
-  final NavStep? next;
-
-  @override
-  Widget build(BuildContext context) {
-    final showLanes = step.lanes.length > 1 && distance < 1500;
-    final iconSize = compact ? 36.0 : 52.0;
-    final distSize = compact ? 20.0 : 28.0;
-    final textSize = compact ? 14.0 : 17.0;
-    return Material(
-      elevation: 8,
-      color: kNavGreen,
-      borderRadius: BorderRadius.circular(compact ? 14 : 20),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: compact
-                ? const EdgeInsets.fromLTRB(10, 8, 10, 8)
-                : const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Row(
-              children: [
-                Icon(iconFor(step), color: Colors.white, size: iconSize),
-                SizedBox(width: compact ? 8 : 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        formatDistance(distance),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: distSize,
-                          fontWeight: FontWeight.w800,
-                          height: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        instructionFor(step),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: textSize,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (showLanes)
-            LaneStrip(
-              lanes: step.lanes,
-              modifier: step.modifier,
-              iconSize: compact ? 22 : 30,
-            ),
-          if (next != null)
-            Container(
-              color: kNavGreenDark,
-              padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 10 : 16, vertical: compact ? 4 : 8),
-              child: Row(
-                children: [
-                  const Text('Kemudian',
-                      style: TextStyle(color: Colors.white70, fontSize: 14)),
-                  const SizedBox(width: 8),
-                  Icon(iconFor(next!), color: Colors.white, size: 22),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Barisan anak panah lorong: putih = lorong yang patut dimasuki.
-class LaneStrip extends StatelessWidget {
-  const LaneStrip({
-    super.key,
-    required this.lanes,
-    required this.modifier,
-    this.iconSize = 30,
-  });
-
-  final List<LaneInfo> lanes;
-  final String modifier;
-  final double iconSize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: kNavGreenDark,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < lanes.length; i++) ...[
-            if (i > 0)
-              Container(width: 1, height: iconSize, color: Colors.white24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              child: Icon(
-                laneIcon(laneDisplayIndication(lanes[i], modifier)),
-                size: iconSize,
-                color: lanes[i].valid ? Colors.white : Colors.white30,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 /// Amaran insiden di hadapan.
 class IncidentPill extends StatelessWidget {
   const IncidentPill({
@@ -244,76 +114,6 @@ class IncidentPill extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Laju semasa + had laju.
-class SpeedBadge extends StatelessWidget {
-  const SpeedBadge({super.key, required this.speedKmh, this.limitKmh});
-
-  final double speedKmh;
-  final double? limitKmh;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final limit = limitKmh;
-    final over = limit != null && speedKmh > limit + 5;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (limit != null)
-          Container(
-            width: 48,
-            height: 48,
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFD32F2F), width: 5),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              limit.round().toString(),
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-              ),
-            ),
-          ),
-        Material(
-          elevation: 4,
-          shape: const CircleBorder(),
-          color: over ? const Color(0xFFD32F2F) : scheme.surface,
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  speedKmh.round().toString(),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: over ? Colors.white : scheme.onSurface,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  'km/j',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: over ? Colors.white70 : scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -516,7 +316,349 @@ class RoutePreviewCard extends StatelessWidget {
   }
 }
 
-/// Bar ringkas semasa navigasi: masa, jarak, waktu tiba + butang.
+/// Papan tanda arahan di atas (biru, gaya papan tanda lebuh raya)
+/// dengan anak panah lorong di sebelahnya.
+class ManeuverBanner extends StatelessWidget {
+  const ManeuverBanner({
+    super.key,
+    required this.step,
+    required this.distance,
+    this.next,
+    this.compact = false,
+  });
+
+  final NavStep step;
+  final double distance;
+
+  /// Gerakan seterusnya — hanya diberi jika ia sangat dekat.
+  final NavStep? next;
+
+  /// Saiz kecil (landscape).
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final showLanes = step.lanes.length > 1 && distance < 1500;
+    final hasSignText = step.destinations.isNotEmpty;
+    final route = signRoute(step);
+
+    final sign = Container(
+      decoration: BoxDecoration(
+        color: kSignBlue,
+        borderRadius: BorderRadius.circular(compact ? 10 : 12),
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      padding: EdgeInsets.fromLTRB(
+          compact ? 8 : 10, compact ? 6 : 8, compact ? 8 : 12, compact ? 6 : 8),
+      child: Row(
+        children: [
+          Icon(iconFor(step), color: Colors.white, size: compact ? 36 : 50),
+          SizedBox(width: compact ? 6 : 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (step.exitNumber != null || route != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Wrap(
+                      spacing: 6,
+                      children: [
+                        if (step.exitNumber != null)
+                          _Badge(
+                            text: 'EXIT ${step.exitNumber}',
+                            color: const Color(0xFF1B7A3A),
+                          ),
+                        if (route != null)
+                          _Badge(text: route, color: const Color(0xFFF5B400),
+                              textColor: Colors.black),
+                      ],
+                    ),
+                  ),
+                Text(
+                  signTitle(step),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: compact ? 14 : 18,
+                    fontWeight: FontWeight.w700,
+                    height: 1.15,
+                  ),
+                ),
+                if (hasSignText)
+                  Text(
+                    instructionFor(step),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: compact ? 11 : 13,
+                    ),
+                  ),
+                Text(
+                  formatDistance(distance),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: compact ? 20 : 26,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final lanes = showLanes
+        ? LaneArrows(
+            lanes: step.lanes,
+            modifier: step.modifier,
+            iconSize: compact ? 24 : 34,
+          )
+        : null;
+
+    Widget body;
+    if (lanes != null && !compact) {
+      body = IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(flex: 6, child: sign),
+            const SizedBox(width: 8),
+            Expanded(flex: 5, child: lanes),
+          ],
+        ),
+      );
+    } else {
+      body = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          sign,
+          if (lanes != null) ...[const SizedBox(height: 6), lanes],
+        ],
+      );
+    }
+
+    final nextStep = next;
+    return Material(
+      elevation: 8,
+      color: kNavPanel,
+      borderRadius: BorderRadius.circular(compact ? 12 : 16),
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 6 : 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            body,
+            if (nextStep != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+                child: Row(
+                  children: [
+                    const Text('Kemudian',
+                        style: TextStyle(color: Colors.white60, fontSize: 13)),
+                    const SizedBox(width: 6),
+                    Icon(iconFor(nextStep), color: Colors.white, size: 20),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        instructionFor(nextStep),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({
+    required this.text,
+    required this.color,
+    this.textColor = Colors.white,
+  });
+
+  final String text;
+  final Color color;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.white, width: 1),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+/// Anak panah lorong: biru terang = lorong yang patut dimasuki.
+class LaneArrows extends StatelessWidget {
+  const LaneArrows({
+    super.key,
+    required this.lanes,
+    required this.modifier,
+    this.iconSize = 34,
+  });
+
+  final List<LaneInfo> lanes;
+  final String modifier;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF14171C),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          for (var i = 0; i < lanes.length; i++) ...[
+            if (i > 0)
+              Container(
+                width: 2,
+                height: iconSize + 8,
+                color: Colors.white24,
+              ),
+            Flexible(
+              child: Icon(
+                laneIcon(laneDisplayIndication(lanes[i], modifier)),
+                size: iconSize,
+                color: lanes[i].valid ? kLaneActive : const Color(0xFF5F6670),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Laju semasa + had laju (kotak gelap di kanan).
+class SpeedBadge extends StatelessWidget {
+  const SpeedBadge({super.key, required this.speedKmh, this.limitKmh});
+
+  final double speedKmh;
+  final double? limitKmh;
+
+  @override
+  Widget build(BuildContext context) {
+    final limit = limitKmh;
+    final over = limit != null && speedKmh > limit + 5;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (limit != null)
+          Container(
+            width: 46,
+            height: 46,
+            margin: const EdgeInsets.only(bottom: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFD32F2F), width: 5),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              limit.round().toString(),
+              style: const TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        Material(
+          elevation: 6,
+          color: over ? const Color(0xFFD32F2F) : kNavPanel,
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            width: 68,
+            height: 64,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  speedKmh.round().toString(),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'km/j',
+                  style: TextStyle(fontSize: 11, color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Nama jalan semasa (di bawah, tengah).
+class RoadNamePill extends StatelessWidget {
+  const RoadNamePill({super.key, required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: kNavPanel,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Text(
+        name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// Bar bawah semasa navigasi: ETA (minit · waktu tiba · jarak) + butang.
 class TripBar extends StatelessWidget {
   const TripBar({
     super.key,
@@ -525,85 +667,129 @@ class TripBar extends StatelessWidget {
     required this.voiceOn,
     required this.onToggleVoice,
     required this.onFuel,
+    required this.onSettings,
     required this.onEnd,
     this.trafficDelay = 0,
     this.compact = false,
   });
 
-  /// Saiz kecil (landscape): butang suara & minyak dipindah ke tepi peta.
-  final bool compact;
   final double remainingDuration;
   final double remainingDistance;
   final double trafficDelay;
   final bool voiceOn;
   final VoidCallback onToggleVoice;
   final VoidCallback onFuel;
+  final VoidCallback onSettings;
   final VoidCallback onEnd;
+
+  /// Saiz kecil (landscape): butang suara & minyak dipindah ke tepi peta.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final eta = DateTime.now().add(Duration(seconds: remainingDuration.round()));
+    final eta =
+        DateTime.now().add(Duration(seconds: remainingDuration.round()));
+    final (minVal, minUnit) = durationParts(remainingDuration);
+    final (clock, ampm) = formatClock12(eta);
+    final (distVal, distUnit) = distanceParts(remainingDistance);
     final delayMin = (trafficDelay / 60).round();
     final timeColor = delayMin >= 10
-        ? const Color(0xFFD32F2F)
+        ? const Color(0xFFFF6B6B)
         : delayMin >= 3
-            ? const Color(0xFFF57C00)
-            : const Color(0xFF2E9E5B);
+            ? const Color(0xFFFFB74D)
+            : const Color(0xFF69F0AE);
+    final big = compact ? 22.0 : 30.0;
 
-    return PanelCard(
-      padding: compact
-          ? const EdgeInsets.fromLTRB(12, 6, 6, 6)
-          : const EdgeInsets.fromLTRB(16, 10, 8, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    Widget stat(String value, String unit, Color color) => Padding(
+          padding: EdgeInsets.only(right: compact ? 12 : 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontSize: big,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                ),
+              ),
+              Text(
+                unit,
+                style: const TextStyle(color: Colors.white60, fontSize: 12),
+              ),
+            ],
+          ),
+        );
+
+    Widget btn(IconData icon, String tip, VoidCallback onTap,
+            {Color? color}) =>
+        IconButton(
+          tooltip: tip,
+          onPressed: onTap,
+          icon: Icon(icon, color: color ?? Colors.white),
+        );
+
+    return Material(
+      elevation: 10,
+      color: kNavPanel,
+      borderRadius: BorderRadius.circular(compact ? 14 : 20),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(compact ? 12 : 18, 6, 6, compact ? 6 : 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Row(
               children: [
-                Text(
-                  formatDuration(remainingDuration),
-                  style: TextStyle(
-                    color: timeColor,
-                    fontSize: compact ? 19 : 24,
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('ETA',
+                          style:
+                              TextStyle(color: Colors.white54, fontSize: 12)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            stat(minVal, minUnit, timeColor),
+                            stat(clock, ampm, Colors.white),
+                            stat(distVal, distUnit, Colors.white),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Text(
-                  '${formatDistance(remainingDistance)} • Tiba ${formatClock(eta)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: compact ? 12 : 14,
-                  ),
-                ),
+                Container(width: 1, height: 48, color: Colors.white12),
+                const SizedBox(width: 4),
+                if (!compact) ...[
+                  btn(voiceOn ? Icons.volume_up : Icons.volume_off,
+                      voiceOn ? 'Senyapkan suara' : 'Hidupkan suara',
+                      onToggleVoice),
+                  btn(Icons.local_gas_station, 'Stesen minyak di laluan',
+                      onFuel),
+                ],
+                btn(Icons.settings, 'Tetapan', onSettings),
+                btn(Icons.close, 'Tamat navigasi', onEnd,
+                    color: const Color(0xFFFF6B6B)),
               ],
             ),
-          ),
-          if (!compact) ...[
-            IconButton(
-              tooltip: voiceOn ? 'Senyapkan suara' : 'Hidupkan suara',
-              onPressed: onToggleVoice,
-              icon: Icon(voiceOn ? Icons.volume_up : Icons.volume_off),
-            ),
-            IconButton(
-              tooltip: 'Stesen minyak di laluan',
-              onPressed: onFuel,
-              icon: const Icon(Icons.local_gas_station),
-            ),
           ],
-          IconButton.filled(
-            tooltip: 'Tamat navigasi',
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFD32F2F),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: onEnd,
-            icon: const Icon(Icons.close),
-          ),
-        ],
+        ),
       ),
     );
   }

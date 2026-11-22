@@ -259,3 +259,46 @@ String laneDisplayIndication(LaneInfo lane, String maneuverModifier) {
   }
   return lane.indications.isEmpty ? 'straight' : lane.indications.first;
 }
+
+
+/// Teks utama papan tanda: destinasi papan tanda (jika ada), atau arahan.
+/// "E2: Skudai, Johor Bahru" -> "Skudai / Johor Bahru"
+String signTitle(NavStep step) {
+  var d = step.destinations.trim();
+  if (d.isEmpty) return instructionFor(step);
+  final colon = d.indexOf(':');
+  if (colon >= 0 && colon < d.length - 1) d = d.substring(colon + 1).trim();
+  return d.split(RegExp(r'\s*,\s*')).where((e) => e.isNotEmpty).join(' / ');
+}
+
+/// Kod laluan pada papan tanda, contoh "E2" daripada "E2: Skudai".
+String? signRoute(NavStep step) {
+  final d = step.destinations;
+  final colon = d.indexOf(':');
+  if (colon <= 0) return null;
+  final code = d.substring(0, colon).trim();
+  return code.isEmpty ? null : code;
+}
+
+/// Waktu 12 jam: (4:25, PTG)
+(String, String) formatClock12(DateTime t) {
+  final h12 = t.hour % 12 == 0 ? 12 : t.hour % 12;
+  final mm = t.minute.toString().padLeft(2, '0');
+  return ('$h12:$mm', t.hour < 12 ? 'PG' : 'PTG');
+}
+
+/// Masa sebagai (nilai, unit): (14, min) atau (1:25, jam)
+(String, String) durationParts(double seconds) {
+  final totalMin = (seconds / 60).round();
+  if (totalMin < 60) return ('${totalMin < 1 ? 1 : totalMin}', 'min');
+  final h = totalMin ~/ 60;
+  final m = (totalMin % 60).toString().padLeft(2, '0');
+  return ('$h:$m', 'jam');
+}
+
+/// Jarak sebagai (nilai, unit): (350, m) atau (8.4, km)
+(String, String) distanceParts(double meters) {
+  final text = formatDistance(meters);
+  final i = text.lastIndexOf(' ');
+  return (text.substring(0, i), text.substring(i + 1));
+}

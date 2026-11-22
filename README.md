@@ -3,6 +3,9 @@
 Aplikasi navigasi percuma untuk Malaysia, dibina dengan Flutter + Mapbox.
 
 ## Ciri-ciri
+- Paparan navigasi baharu: papan tanda biru (destinasi & nombor EXIT), anak panah lorong, bar ETA, nama jalan semasa
+- Ikon lokasi berbentuk anak panah yang berpusing ikut arah kenderaan
+- Peta 3D (Mapbox Standard) dengan pencahayaan siang/malam
 - Peta navigasi siang/malam (auto ikut waktu, atau pilih sendiri)
 - Lapisan trafik & insiden langsung di peta
 - Laluan diwarnakan ikut kesesakan (biru lancar, oren perlahan, merah sesak)
@@ -23,6 +26,7 @@ Aplikasi navigasi percuma untuk Malaysia, dibina dengan Flutter + Mapbox.
 | `navigation_screen.dart` | Skrin utama: peta, carian, navigasi, suara |
 | `widgets.dart` | Komponen paparan (kad arahan, lorong, laju, ringkasan) |
 | `voice.dart` | Suara arahan (Text-to-Speech) |
+| `puck.dart` | Ikon anak panah lokasi |
 | `app_theme.dart` | Tema siang/malam |
 | `mapbox_api.dart` | Panggilan API carian & laluan Mapbox |
 | `instructions_ms.dart` | Arahan Bahasa Melayu & format jarak/masa |
