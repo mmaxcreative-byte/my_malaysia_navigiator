@@ -24,7 +24,7 @@ class PanelCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       elevation: 6,
-      shadowColor: Colors.black54,
+      shadowColor: const Color(0x380A2033),
       color: color ?? scheme.surface,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
@@ -86,7 +86,7 @@ class InstructionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showLanes = step.lanes.length > 1 && distance < 1500;
+    final showLanes = step.lanes.isNotEmpty && distance < 1500;
     final iconSize = compact ? 36.0 : 52.0;
     final distSize = compact ? 20.0 : 28.0;
     final textSize = compact ? 14.0 : 17.0;
@@ -105,7 +105,16 @@ class InstructionCard extends StatelessWidget {
                 : const EdgeInsets.fromLTRB(16, 14, 16, 14),
             child: Row(
               children: [
-                Icon(iconFor(step), color: Colors.white, size: iconSize),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(compact ? 5 : 8),
+                    child: Icon(iconFor(step), color: Colors.white, size: iconSize),
+                  ),
+                ),
                 SizedBox(width: compact ? 8 : 14),
                 Expanded(
                   child: Column(
@@ -138,6 +147,20 @@ class InstructionCard extends StatelessWidget {
               ],
             ),
           ),
+          if (step.trafficSignal && distance < 350)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.traffic, size: 18, color: Color(0xFFFFD176)),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Lampu isyarat di persimpangan',
+                        style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
           if (showLanes)
             LaneStrip(
               lanes: step.lanes,
@@ -164,7 +187,7 @@ class InstructionCard extends StatelessWidget {
   }
 }
 
-/// Barisan anak panah lorong: putih = lorong yang patut dimasuki.
+/// Satu petak untuk setiap lorong, mengikut susunan kiri ke kanan.
 class LaneStrip extends StatelessWidget {
   const LaneStrip({
     super.key,
@@ -179,25 +202,66 @@ class LaneStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPreferred = lanes.any((lane) => lane.valid && lane.active);
     return Container(
       color: kNavGreenDark,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (var i = 0; i < lanes.length; i++) ...[
-            if (i > 0)
-              Container(width: 1, height: iconSize, color: Colors.white24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
-              child: Icon(
-                laneIcon(laneDisplayIndication(lanes[i], modifier)),
-                size: iconSize,
-                color: lanes[i].valid ? Colors.white : Colors.white30,
-              ),
+          for (var i = 0; i < lanes.length; i++)
+            Expanded(
+              child: _lane(lanes[i], i + 1, hasPreferred),
             ),
-          ],
         ],
+      ),
+    );
+  }
+
+  Widget _lane(LaneInfo lane, int number, bool hasPreferred) {
+    final preferred = lane.valid && (lane.active || !hasPreferred);
+    final guidance = preferred
+        ? 'disyorkan'
+        : lane.valid
+            ? 'boleh digunakan'
+            : 'tidak sesuai';
+    final directions = lane.indications.toSet();
+    final recommended = lane.valid && directions.isNotEmpty
+        ? laneDisplayIndication(lane, modifier)
+        : null;
+    return Semantics(
+      label: 'Lorong $number: $guidance',
+      child: Container(
+        height: iconSize + 10,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+        decoration: BoxDecoration(
+          color: preferred ? const Color(0xFFC4F6DF) : Colors.white10,
+          border: Border.all(color: lane.valid ? Colors.white38 : Colors.white12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: directions.isEmpty
+              ? Icon(Icons.remove, size: iconSize, color: Colors.white54)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final direction in directions)
+                      Icon(
+                        laneIcon(direction),
+                        size: iconSize,
+                        color: preferred
+                            ? (direction == recommended
+                                ? const Color(0xFF084C38)
+                                : const Color(0xFF426E60))
+                            : (direction == recommended
+                                ? Colors.white
+                                : Colors.white54),
+                      ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -352,6 +416,87 @@ class TrafficChip extends StatelessWidget {
 }
 
 /// Ringkasan laluan sebelum mula (destinasi, masa, trafik, insiden).
+class RouteOptionsSheet extends StatelessWidget {
+  const RouteOptionsSheet({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.quotes,
+  });
+
+  final List<NavRoute> options;
+  final NavRoute? selected;
+  final Map<NavRoute, Future<double?>> quotes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: [
+        Text('Pilihan laluan', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 12),
+        for (final (index, route) in options.indexed)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              tileColor: theme.colorScheme.surfaceContainerHigh,
+              selectedTileColor: theme.colorScheme.primaryContainer,
+              selected: route == selected,
+              leading: Icon(route == selected ? Icons.check_circle : Icons.route),
+              title: Text(route.avoidTolls
+                  ? 'Laluan tanpa tol'
+                  : 'Laluan ${index + 1}'),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${formatDuration(route.duration)} • '
+                      '${formatDistance(route.distance)}'),
+                  TollLabel(route: route, quote: quotes[route]),
+                ],
+              ),
+              onTap: () => Navigator.pop(context, route),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class TollLabel extends StatelessWidget {
+  const TollLabel({super.key, required this.route, this.quote});
+
+  final NavRoute route;
+  final Future<double?>? quote;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<double?>(
+      future: quote,
+      builder: (context, snapshot) {
+        final amount = route.avoidTolls ? 0.0 : snapshot.data;
+        final String label;
+        if (amount != null) {
+          label = amount == 0
+              ? 'Tanpa tol • RM 0.00'
+              : 'Anggaran tol kereta • RM ${amount.toStringAsFixed(2)}';
+        } else if (snapshot.connectionState == ConnectionState.waiting) {
+          label = 'Menyemak anggaran tol…';
+        } else {
+          label = route.hasToll
+              ? 'Bertol • Caj tidak tersedia'
+              : 'Maklumat tol tidak tersedia';
+        }
+        return Text(label);
+      },
+    );
+  }
+}
+
 class RoutePreviewCard extends StatelessWidget {
   const RoutePreviewCard({
     super.key,
@@ -365,6 +510,8 @@ class RoutePreviewCard extends StatelessWidget {
     this.stopName,
     this.onRemoveStop,
     this.loading = false,
+    this.tollQuote,
+    this.onChooseRoute,
   });
 
   final NavRoute route;
@@ -377,6 +524,8 @@ class RoutePreviewCard extends StatelessWidget {
   final VoidCallback onFuel;
   final VoidCallback? onRemoveStop;
   final bool loading;
+  final Future<double?>? tollQuote;
+  final VoidCallback? onChooseRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -460,6 +609,19 @@ class RoutePreviewCard extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
+          ),
+          Row(
+            children: [
+              Icon(Icons.toll, color: scheme.primary, size: 18),
+              const SizedBox(width: 6),
+              Expanded(child: TollLabel(route: route, quote: tollQuote)),
+              if (onChooseRoute != null)
+                TextButton.icon(
+                  onPressed: onChooseRoute,
+                  icon: const Icon(Icons.alt_route, size: 18),
+                  label: const Text('Laluan'),
+                ),
             ],
           ),
           const SizedBox(height: 6),

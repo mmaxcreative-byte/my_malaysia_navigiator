@@ -31,6 +31,7 @@ class LaneInfo {
     required this.indications,
     required this.valid,
     this.validIndication,
+    this.active = false,
   });
 
   /// Arah yang dibenarkan lorong ini: left, straight, right, dll.
@@ -38,6 +39,9 @@ class LaneInfo {
 
   /// Lorong ini boleh digunakan untuk gerakan seterusnya.
   final bool valid;
+
+  /// Lorong pilihan Mapbox antara lorong yang sah.
+  final bool active;
 
   /// Arah lorong yang sepadan dengan laluan (jika diberi).
   final String? validIndication;
@@ -55,6 +59,7 @@ class NavStep {
     this.exit,
     this.lanes = const [],
     this.waypointArrival = false,
+    this.trafficSignal = false,
   });
 
   /// Jenis gerakan Mapbox: depart, turn, arrive, roundabout, dll.
@@ -83,6 +88,7 @@ class NavStep {
 
   /// Tiba di hentian (bukan destinasi akhir).
   final bool waypointArrival;
+  final bool trafficSignal;
 }
 
 /// Insiden di sepanjang laluan (kemalangan, kerja jalan, banjir, dll.).
@@ -115,6 +121,9 @@ class NavRoute {
     this.congestion = const [],
     this.maxSpeedKmh = const [],
     this.incidents = const [],
+    this.trafficSignals = const [],
+    this.hasToll = false,
+    this.avoidTolls = false,
   }) {
     cumulative = cumulativeDistances(coordinates);
     final total = cumulative.isEmpty ? 0.0 : cumulative.last;
@@ -152,6 +161,9 @@ class NavRoute {
   final List<double?> maxSpeedKmh;
 
   final List<RouteIncident> incidents;
+  final List<LatLng> trafficSignals;
+  final bool hasToll;
+  final bool avoidTolls;
 
   /// Jarak terkumpul (meter) di setiap titik garisan.
   late final List<double> cumulative;

@@ -8,7 +8,9 @@ Aplikasi navigasi percuma untuk Malaysia, dibina dengan Flutter + Mapbox.
 - Laluan diwarnakan ikut kesesakan (biru lancar, oren perlahan, merah sesak)
 - Amaran insiden di hadapan: kemalangan, kerja jalan, jalan ditutup, cuaca/banjir
 - Arahan suara Bahasa Melayu (sandaran: suara Indonesia jika BM tiada)
-- Panduan lorong (anak panah lorong) bila data tersedia
+- Panduan lorong kiri ke kanan dengan anak panah bagi setiap arah yang tersedia
+- Simbol lampu isyarat berdasarkan data persimpangan di sepanjang laluan
+- Banding pilihan laluan mengikut masa, jarak dan anggaran tol kereta dalam RM
 - Laju semasa + had laju (bila data tersedia)
 - Cari stesen minyak berdekatan atau di sepanjang laluan, dan singgah
 - Skrin kekal menyala semasa aplikasi dibuka
@@ -45,3 +47,21 @@ Tukar token Mapbox tanpa ubah kod:
 ```bash
 flutter build apk --release --dart-define=MAPBOX_TOKEN=pk.xxxxx
 ```
+
+
+## Anggaran tol
+
+Aplikasi meminta laluan alternatif dan laluan dengan tetapan elak tol daripada Mapbox.
+Laluan tanpa tol memaparkan RM 0.00. Harga untuk laluan lain menggunakan anggaran
+minimum TollGuru bagi kereta penumpang dua gandar, jika tersedia dalam MYR.
+
+Untuk membolehkan anggaran harga, terbitkan `services/toll_quote.mjs` sebagai
+Cloudflare Worker dan simpan `TOLLGURU_API_KEY` sebagai rahsia Worker. Tetapkan
+had kadar pada endpoint sebelum menggunakannya pada APK awam. Simpan URL HTTPS
+Worker dalam pemboleh ubah repositori GitHub Actions `TOLL_QUOTE_URL`.
+Binaan tempatan menerima `--dart-define=TOLL_QUOTE_URL=https://...`.
+
+Apabila endpoint diaktifkan, aplikasi menghantar bentuk laluan yang dipilih
+Mapbox kepada Worker untuk mendapatkan harga. Tanpa endpoint atau apabila
+penyedia tiada harga untuk laluan tersebut, aplikasi memaparkan bahawa caj
+tidak tersedia.

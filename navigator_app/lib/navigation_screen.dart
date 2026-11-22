@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mb;
@@ -12,6 +14,7 @@ import 'geo_utils.dart';
 import 'instructions_ms.dart';
 import 'mapbox_api.dart';
 import 'models.dart';
+import 'toll_api.dart';
 import 'voice.dart';
 import 'widgets.dart';
 
@@ -40,6 +43,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   mb.PolylineAnnotationManager? _lineManager;
   mb.CircleAnnotationManager? _markerManager;
   mb.CircleAnnotationManager? _fuelManager;
+  mb.PointAnnotationManager? _signalManager;
+  Future<Uint8List?>? _signalIcon;
+  Future<void> _routeDrawing = Future<void>.value();
 
   // Tema
   ThemePref _themePref = ThemePref.auto;
@@ -57,6 +63,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   Timer? _debounce;
+  int _searchRevision = 0;
   List<PlaceResult> _results = [];
   bool _searching = false;
   String? _searchMessage;
@@ -73,6 +80,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
   PlaceResult? _destination;
   PlaceResult? _stop;
   NavRoute? _route;
+  List<NavRoute> _routeOptions = [];
+  Map<NavRoute, Future<double?>> _tollQuotes = {};
+  int _routeRevision = 0;
   List<PlaceResult> _fuelResults = [];
   bool _loadingRoute = false;
   bool _navigating = false;
@@ -171,8 +181,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       await _map?.style.setStyleURI(uri);
     } catch (_) {}
     // Warna laluan berbeza ikut tema.
-    final route = _route;
-    if (route != null) await _drawRoute(route);
+    await _refreshRouteDrawing();
   }
 
   void _cycleTheme() {
@@ -277,12 +286,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _lineManager = await map.annotations.createPolylineAnnotationManager();
       _fuelManager = await map.annotations.createCircleAnnotationManager();
       _markerManager = await map.annotations.createCircleAnnotationManager();
+      _signalManager = await map.annotations.createPointAnnotationManager();
     } catch (_) {}
     try {
       // Buang pembaris jarak di atas kiri (tidak berguna semasa memandu).
       await map.scaleBar.updateSettings(mb.ScaleBarSettings(enabled: false));
     } catch (_) {}
     await _enablePuck();
+    await _refreshRouteDrawing();
     final pos = _myPos;
     if (pos != null) await _flyTo(pos, zoom: 15);
   }
@@ -290,8 +301,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   /// Dipanggil setiap kali gaya peta siap dimuatkan (termasuk tukar tema).
   Future<void> _onStyleLoaded() async {
     await _enablePuck();
-    final route = _route;
-    if (route != null) await _drawRoute(route);
+    await _refreshRouteDrawing();
     await _drawMarkers();
     await _drawFuelMarkers();
   }
@@ -394,6 +404,68 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
   }
 
+  Future<void> _refreshRouteDrawing() {
+    _routeDrawing = _routeDrawing.then((_) async {
+      if (!mounted) return;
+      final route = _route;
+      if (route == null) {
+        try {
+          await _lineManager?.deleteAll();
+        } catch (_) {}
+      } else {
+        await _drawRoute(route);
+      }
+      await _drawSignals(route);
+    });
+    return _routeDrawing;
+  }
+
+  Future<void> _drawSignals(NavRoute? route) async {
+    final manager = _signalManager;
+    if (manager == null) return;
+    try {
+      await manager.deleteAll();
+      if (route == null || route.trafficSignals.isEmpty) return;
+      final png = await (_signalIcon ??= _makeSignalIcon());
+      if (png == null || !mounted || _route != route) return;
+      await manager.createMulti([
+        for (final signal in route.trafficSignals)
+          mb.PointAnnotationOptions(geometry: _pt(signal), image: png),
+      ]);
+    } catch (_) {}
+  }
+
+  Future<Uint8List?> _makeSignalIcon() async {
+    const size = 28;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final paint = Paint()..color = const Color(0xFFFFFFFF);
+    canvas.drawCircle(const Offset(14, 14), 13, paint);
+    paint.color = const Color(0xFF162538);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(8, 3, 12, 22),
+          const Radius.circular(4)),
+      paint,
+    );
+    const colors = [Color(0xFFFF6363), Color(0xFFFFCA57), Color(0xFF53E6A1)];
+    for (var i = 0; i < colors.length; i++) {
+      paint.color = colors[i];
+      canvas.drawCircle(Offset(14, 8 + i * 6.0), 2, paint);
+    }
+    final picture = recorder.endRecording();
+    try {
+      final image = await picture.toImage(size, size);
+      try {
+        return (await image.toByteData(format: ui.ImageByteFormat.png))
+            ?.buffer.asUint8List();
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      picture.dispose();
+    }
+  }
+
   /// Lukis laluan dengan warna ikut kesesakan trafik.
   Future<void> _drawRoute(NavRoute route) async {
     final manager = _lineManager;
@@ -408,6 +480,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
           );
 
       final options = <mb.PolylineAnnotationOptions>[
+        if (!_navigating)
+          for (final alternative in _routeOptions)
+            if (alternative != route)
+              mb.PolylineAnnotationOptions(
+                geometry: line(alternative.coordinates),
+                lineColor: _night ? 0xFF7993AE : 0xFF6D839F,
+                lineWidth: 5,
+                lineOpacity: 0.8,
+              ),
         mb.PolylineAnnotationOptions(
           geometry: line(coords),
           lineColor: _night ? 0xFF01579B : 0xFF0B3D91,
@@ -486,52 +567,62 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // ---------------------------------------------------------------------
 
   void _onSearchChanged(String text) {
-    _debounce?.cancel();
+    setState(_invalidateSearch);
     final q = text.trim();
-    if (q.length < 3) {
-      setState(() {
-        _results = [];
-        _searchMessage = null;
-        _searching = false;
-      });
-      return;
+    if (q.length >= 3) {
+      _debounce = Timer(const Duration(milliseconds: 450), () => _runSearch(q));
     }
-    _debounce = Timer(const Duration(milliseconds: 450), () => _runSearch(q));
+  }
+
+  void _invalidateSearch() {
+    _debounce?.cancel();
+    _searchRevision++;
+    _results = [];
+    _searchMessage = null;
+    _searching = false;
   }
 
   Future<void> _runSearch(String q) async {
     setState(() {
+      _invalidateSearch();
       _searching = true;
-      _searchMessage = null;
     });
+    final revision = _searchRevision;
+    List<PlaceResult> results = [];
+    String? message;
     try {
-      final results = await _api.search(q, near: _myPos);
-      if (!mounted || _searchCtrl.text.trim() != q) return;
-      setState(() {
-        _results = results;
-        _searchMessage = results.isEmpty ? 'Tiada hasil untuk "$q".' : null;
-      });
+      results = await _api.search(q, near: _myPos);
+      if (results.isEmpty) message = 'Tiada hasil untuk "$q".';
     } on MapboxApiException catch (e) {
-      if (mounted) setState(() => _searchMessage = e.message);
+      message = e.message;
     } catch (_) {
-      if (mounted) setState(() => _searchMessage = 'Carian gagal.');
-    } finally {
-      if (mounted) setState(() => _searching = false);
+      message = 'Carian gagal.';
     }
+    if (!mounted || revision != _searchRevision) return;
+    setState(() {
+      _results = results;
+      _searchMessage = message;
+      _searching = false;
+    });
   }
 
   Future<void> _selectPlace(PlaceResult place) async {
     _searchFocus.unfocus();
     setState(() {
       _searchCtrl.text = place.name;
-      _results = [];
-      _searchMessage = null;
+      _invalidateSearch();
       _destination = place;
       _stop = null;
       _route = null;
+      _routeOptions = [];
+      _tollQuotes = {};
+      _loadingRoute = false;
+      _routeRevision++;
       _arrived = false;
     });
+    await _refreshRouteDrawing();
     await _drawMarkers();
+    if (!mounted || _destination != place) return;
     if (_myPos == null) {
       _toast('Menunggu lokasi GPS anda...');
       await _flyTo(place.location, zoom: 14);
@@ -685,52 +776,109 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Future<void> _loadRoute({bool fit = true}) async {
     final from = _myPos;
     final dest = _destination;
-    if (from == null || dest == null) return;
+    if (!mounted || from == null || dest == null) return;
     final stop = _stop;
+    final revision = ++_routeRevision;
+    final avoidTolls = _route?.avoidTolls ?? false;
+    final preview = !_navigating;
+    final points = [from, if (stop != null) stop.location, dest.location];
 
     setState(() => _loadingRoute = true);
     try {
-      final route = await _api.route([
-        from,
-        if (stop != null) stop.location,
-        dest.location,
-      ]);
-      if (!mounted || _destination != dest) return;
+      final options = preview
+          ? await _api.routeOptions(points)
+          : [await _api.route(points, avoidTolls: avoidTolls)];
+      if (!mounted ||
+          revision != _routeRevision ||
+          _destination != dest ||
+          _stop != stop) {
+        return;
+      }
+      final endpoint = Uri.tryParse(kTollQuoteUrl);
+      final route = avoidTolls
+          ? options.firstWhere((route) => route.avoidTolls,
+              orElse: () => options.first)
+          : options.first;
       setState(() {
-        _route = route;
-        _stepIndex = route.steps.length > 1 ? 1 : 0;
-        _remainingDistance = route.distance;
-        _remainingDuration = route.duration;
-        _distToManeuver =
-            route.steps.isNotEmpty ? route.steps.first.distance : 0;
-        _offRouteCount = 0;
-        _arrived = false;
-        _announcedStep = -1;
-        _announcedIncidents.clear();
+        _routeOptions = options;
+        _tollQuotes = {
+          if (preview && endpoint != null && endpoint.scheme == 'https')
+            for (final option in options)
+              if (!option.avoidTolls) option: estimateToll(option, endpoint),
+        };
+        _setRoute(route);
       });
-      await _drawRoute(route);
-      if (fit) await _fitRoute(route);
-      if (_navigating) _updateProgress();
-      // Tunjuk stesen minyak di sepanjang laluan (sekali setiap laluan baharu,
-      // bukan setiap kali kira semula — jimat kuota API).
-      if (fit) _loadFuelAlongRoute(route);
+      await _showRoute(route, fit: fit);
     } on MapboxApiException catch (e) {
-      _toast(e.message);
+      if (mounted && revision == _routeRevision) _toast(e.message);
     } catch (_) {
-      _toast('Gagal mendapatkan laluan.');
+      if (mounted && revision == _routeRevision) {
+        _toast('Gagal mendapatkan laluan.');
+      }
     } finally {
-      if (mounted) setState(() => _loadingRoute = false);
+      if (mounted && revision == _routeRevision) {
+        setState(() => _loadingRoute = false);
+      }
     }
   }
 
+  void _setRoute(NavRoute route) {
+    _route = route;
+    _stepIndex = route.steps.length > 1 ? 1 : 0;
+    _remainingDistance = route.distance;
+    _remainingDuration = route.duration;
+    _distToManeuver = route.steps.isNotEmpty ? route.steps.first.distance : 0;
+    _offRouteCount = 0;
+    _arrived = false;
+    _announcedStep = -1;
+    _incidentAhead = null;
+    _announcedIncidents.clear();
+    _fuelResults = [];
+  }
+
+  Future<void> _showRoute(NavRoute route, {required bool fit}) async {
+    await _refreshRouteDrawing();
+    if (!mounted || _route != route) return;
+    if (fit) await _fitRoute(route);
+    if (!mounted || _route != route) return;
+    if (_navigating) _updateProgress();
+    await _drawFuelMarkers();
+    if (fit && mounted && _route == route) _loadFuelAlongRoute(route);
+  }
+
+  Future<void> _chooseRoute() async {
+    final options = _routeOptions;
+    final chosen = await showModalBottomSheet<NavRoute>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (context) => RouteOptionsSheet(
+        options: options,
+        selected: _route,
+        quotes: _tollQuotes,
+      ),
+    );
+    if (!mounted ||
+        chosen == null ||
+        _routeOptions != options ||
+        _loadingRoute ||
+        _navigating ||
+        _route == chosen) {
+      return;
+    }
+    setState(() => _setRoute(chosen));
+    await _showRoute(chosen, fit: true);
+  }
+
   void _startNavigation() {
-    if (_route == null || _myPos == null) return;
+    if (_route == null || _myPos == null || _loadingRoute) return;
     setState(() {
       _navigating = true;
       _followUser = true;
       _arrived = false;
       _announcedStep = -1;
     });
+    unawaited(_refreshRouteDrawing());
     _speechPrefix = 'Memulakan navigasi.';
     _updateProgress();
     if (_speechPrefix != null) _say('');
@@ -745,7 +893,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _incidentAhead = null;
     });
     final route = _route;
-    if (route != null) await _fitRoute(route);
+    await _refreshRouteDrawing();
+    if (mounted && route != null && _route == route) await _fitRoute(route);
   }
 
   Future<void> _cancelRoute() async {
@@ -754,17 +903,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _navigating = false;
       _arrived = false;
       _route = null;
+      _routeOptions = [];
+      _tollQuotes = {};
+      _loadingRoute = false;
+      _routeRevision++;
       _destination = null;
       _stop = null;
       _incidentAhead = null;
       _fuelResults = [];
       _searchCtrl.clear();
-      _results = [];
-      _searchMessage = null;
+      _invalidateSearch();
     });
-    try {
-      await _lineManager?.deleteAll();
-    } catch (_) {}
+    await _refreshRouteDrawing();
     await _drawMarkers();
     await _drawFuelMarkers();
     final pos = _myPos;
@@ -1143,6 +1293,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
 
     return RoutePreviewCard(
       route: route,
+      tollQuote: _tollQuotes[route],
+      onChooseRoute: _routeOptions.length > 1 && !_loadingRoute
+          ? _chooseRoute
+          : null,
       destinationName: _destination?.name ?? 'Destinasi',
       stopName: _stop?.name,
       onRemoveStop: _stop == null ? null : _removeStop,
