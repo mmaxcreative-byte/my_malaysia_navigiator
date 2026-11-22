@@ -20,8 +20,9 @@ class TollRates {
 
   Future<double?> estimate(NavRoute route) async {
     if (route.avoidTolls) return 0;
-    if (route.tollPlazas.isEmpty || route.tollPlazas.contains(null))
+    if (route.tollPlazas.isEmpty || route.tollPlazas.contains(null)) {
       return null;
+    }
     final plazas = route.tollPlazas
         .whereType<String>()
         .map(_normalize)

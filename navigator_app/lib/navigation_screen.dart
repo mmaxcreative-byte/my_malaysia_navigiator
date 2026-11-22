@@ -87,6 +87,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   int _routeRevision = 0;
   List<PlaceResult> _fuelResults = [];
   bool _loadingRoute = false;
+  bool _showOptionsOnRoute = false;
   bool _navigating = false;
   bool _arrived = false;
   bool _followUser = true;
@@ -637,6 +638,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _searchCtrl.text = place.name;
       _invalidateSearch();
       _destination = place;
+      _showOptionsOnRoute = true;
       _stop = null;
       _route = null;
       _routeOptions = [];
@@ -845,6 +847,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
         setState(() => _loadingRoute = false);
       }
     }
+    if (mounted &&
+        revision == _routeRevision &&
+        _showOptionsOnRoute &&
+        _routeOptions.isNotEmpty) {
+      _showOptionsOnRoute = false;
+      await _chooseRoute();
+    }
   }
 
   void _setRoute(NavRoute route) {
@@ -876,21 +885,22 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final chosen = await showModalBottomSheet<NavRoute>(
       context: context,
       useSafeArea: true,
-      showDragHandle: true,
+      isDismissible: false,
+      enableDrag: false,
       builder: (context) => RouteOptionsSheet(
         options: options,
         selected: _route,
         quotes: _tollQuotes,
       ),
     );
-    if (!mounted ||
-        chosen == null ||
-        _routeOptions != options ||
-        _loadingRoute ||
-        _navigating ||
-        _route == chosen) {
+    if (!mounted || _routeOptions != options || _loadingRoute || _navigating) {
       return;
     }
+    if (chosen == null) {
+      await _cancelRoute();
+      return;
+    }
+    if (_route == chosen) return;
     setState(() => _setRoute(chosen));
     await _showRoute(chosen, fit: true);
   }
@@ -923,6 +933,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 
   Future<void> _cancelRoute() async {
+    _searchFocus.unfocus();
     _voice.stop();
     setState(() {
       _navigating = false;
@@ -933,6 +944,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _loadingRoute = false;
       _routeRevision++;
       _destination = null;
+      _showOptionsOnRoute = false;
       _stop = null;
       _incidentAhead = null;
       _fuelResults = [];
@@ -1122,13 +1134,25 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _landscape = size.width > size.height;
     _panelWidth = _landscape ? math.min(320.0, size.width * 0.34) : 0.0;
 
-    return Scaffold(
-      resizeToAvoidBottomInset: false,
-      body: Stack(
-        children: [
-          Positioned.fill(child: _mapView),
-          if (_landscape) ..._buildLandscape() else ..._buildPortrait(),
-        ],
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_destination != null ||
+            _searchCtrl.text.isNotEmpty ||
+            _searchFocus.hasFocus ||
+            _fuelResults.isNotEmpty) {
+          unawaited(_cancelRoute());
+        }
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        body: Stack(
+          children: [
+            Positioned.fill(child: _mapView),
+            if (_landscape) ..._buildLandscape() else ..._buildPortrait(),
+          ],
+        ),
       ),
     );
   }
@@ -1320,7 +1344,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     return RoutePreviewCard(
       route: route,
       tollQuote: _tollQuotes[route],
-      onChooseRoute: _routeOptions.length > 1 && !_loadingRoute
+      onChooseRoute: _routeOptions.isNotEmpty && !_loadingRoute
           ? _chooseRoute
           : null,
       destinationName: _destination?.name ?? 'Destinasi',

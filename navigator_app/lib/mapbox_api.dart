@@ -231,25 +231,35 @@ class MapboxApi {
   Future<List<NavRoute>> routeOptions(List<LatLng> points) async {
     final batches = await Future.wait([
       _routes(points, alternatives: true),
-      _routes(points, avoidTolls: true).catchError(
-        (Object _) => <NavRoute>[],
-      ),
+      _routes(points, alternatives: true, avoidTolls: true)
+          .catchError((Object _) => <NavRoute>[]),
     ]);
     final routes = batches.first;
-    for (final free in batches.last.where((route) => !route.hasToll)) {
-      final same = routes.indexWhere((route) {
-        final a = route.coordinates;
-        final b = free.coordinates;
-        return a.length == b.length &&
-            Iterable<int>.generate(a.length).every(
-              (i) => a[i].lat == b[i].lat && a[i].lng == b[i].lng,
-            );
-      });
-      if (same < 0) {
-        routes.add(free);
-      } else {
-        routes[same] = free;
+
+    void addOptions(List<NavRoute> options) {
+      for (final option in options) {
+        if (option.avoidTolls && option.hasToll) continue;
+        final same = routes.indexWhere((route) {
+          final a = route.coordinates;
+          final b = option.coordinates;
+          return a.length == b.length &&
+              Iterable<int>.generate(a.length).every(
+                (i) => a[i].lat == b[i].lat && a[i].lng == b[i].lng,
+              );
+        });
+        if (same < 0) {
+          routes.add(option);
+        } else if (option.avoidTolls) {
+          routes[same] = option;
+        }
       }
+    }
+
+    addOptions(batches.last);
+    if (routes.length == 1) {
+      // Profil biasa kadangkala menemui alternatif yang tiada pada profil trafik.
+      addOptions(await _routes(points, alternatives: true, liveTraffic: false)
+          .catchError((Object _) => <NavRoute>[]));
     }
     return routes;
   }
@@ -258,16 +268,17 @@ class MapboxApi {
     List<LatLng> points, {
     bool alternatives = false,
     bool avoidTolls = false,
+    bool liveTraffic = true,
   }) async {
-    final path =
-        '/directions/v5/mapbox/driving-traffic/${points.map(_lngLat).join(';')}';
+    final profile = liveTraffic ? 'driving-traffic' : 'driving';
+    final path = '/directions/v5/mapbox/$profile/${points.map(_lngLat).join(';')}';
     final json = await _getJson(Uri.https(_host, path, {
       'alternatives': alternatives.toString(),
       if (avoidTolls) 'exclude': 'toll',
       'geometries': 'geojson',
       'overview': 'full',
       'steps': 'true',
-      'annotations': 'congestion,maxspeed',
+      'annotations': liveTraffic ? 'congestion,maxspeed' : 'maxspeed',
       'access_token': token,
     }));
 

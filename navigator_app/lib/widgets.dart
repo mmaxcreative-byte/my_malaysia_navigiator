@@ -251,7 +251,23 @@ class RouteOptionsSheet extends StatelessWidget {
       shrinkWrap: true,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       children: [
-        Text('Pilihan laluan', style: theme.textTheme.titleLarge),
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Kembali ke carian',
+              onPressed: () => Navigator.maybePop(context),
+              icon: const Icon(Icons.arrow_back),
+            ),
+            Expanded(
+              child: Text('Pilihan laluan', style: theme.textTheme.titleLarge),
+            ),
+          ],
+        ),
+        if (options.length == 1)
+          const Padding(
+            padding: EdgeInsets.only(top: 4),
+            child: Text('Hanya satu laluan ditemukan untuk destinasi ini.'),
+          ),
         const SizedBox(height: 12),
         for (final (index, route) in options.indexed)
           Padding(
@@ -266,7 +282,9 @@ class RouteOptionsSheet extends StatelessWidget {
               leading: Icon(route == selected ? Icons.check_circle : Icons.route),
               title: Text(route.avoidTolls
                   ? 'Laluan tanpa tol'
-                  : 'Laluan ${index + 1}'),
+                  : route.hasToll
+                      ? 'Laluan ${index + 1} · Bertol'
+                      : 'Laluan ${index + 1}'),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
