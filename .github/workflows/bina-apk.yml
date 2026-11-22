@@ -19,7 +19,9 @@ jobs:
           channel: stable
           flutter-version: 3.50.0
       - run: flutter pub get
-      - run: flutter build apk --release
+      - run: flutter build apk --release --dart-define="TOLL_QUOTE_URL=$TOLL_QUOTE_URL"
+        env:
+          TOLL_QUOTE_URL: ${{ vars.TOLL_QUOTE_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: navigator-apk

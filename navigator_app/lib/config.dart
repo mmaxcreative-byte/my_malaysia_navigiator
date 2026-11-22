@@ -18,3 +18,6 @@ const String kStyleNight = 'mapbox://styles/mapbox/navigation-night-v1';
 /// Lokasi lalai jika GPS belum tersedia: Kuala Lumpur.
 const double kDefaultLat = 3.1390;
 const double kDefaultLng = 101.6869;
+
+/// Endpoint HTTPS yang menyimpan kunci penyedia tol pada pelayan.
+const kTollQuoteUrl = String.fromEnvironment('TOLL_QUOTE_URL');
