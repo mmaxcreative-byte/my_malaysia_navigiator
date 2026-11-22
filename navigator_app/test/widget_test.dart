@@ -83,7 +83,9 @@ void main() {
         LatLng(3.009, 101.009),
       ],
       steps: [
-        _step('depart'),
+        NavStep(
+          type: 'depart', modifier: '', name: '', distance: 1000,
+          duration: 100, location: const LatLng(3.0, 101.0)),
         NavStep(
           type: 'turn', modifier: 'left', name: '', distance: 1000,
           duration: 100, location: const LatLng(3.0, 101.009)),

@@ -219,11 +219,51 @@ class MapboxApi {
 
   /// Dapatkan laluan memandu (dengan trafik semasa) melalui [points]
   /// (asal, hentian jika ada, destinasi).
-  Future<NavRoute> route(List<LatLng> points) async {
+  Future<NavRoute> route(List<LatLng> points, {bool avoidTolls = false}) async {
+    final routes = await _routes(points, avoidTolls: avoidTolls);
+    if (!avoidTolls) return routes.first;
+    return routes.firstWhere(
+      (route) => !route.hasToll,
+      orElse: () => throw MapboxApiException('Laluan tanpa tol tidak dijumpai.'),
+    );
+  }
+
+  Future<List<NavRoute>> routeOptions(List<LatLng> points) async {
+    final batches = await Future.wait([
+      _routes(points, alternatives: true),
+      _routes(points, avoidTolls: true).catchError(
+        (Object _) => <NavRoute>[],
+      ),
+    ]);
+    final routes = batches.first;
+    for (final free in batches.last.where((route) => !route.hasToll)) {
+      final same = routes.indexWhere((route) {
+        final a = route.coordinates;
+        final b = free.coordinates;
+        return a.length == b.length &&
+            Iterable<int>.generate(a.length).every(
+              (i) => a[i].lat == b[i].lat && a[i].lng == b[i].lng,
+            );
+      });
+      if (same < 0) {
+        routes.add(free);
+      } else {
+        routes[same] = free;
+      }
+    }
+    return routes;
+  }
+
+  Future<List<NavRoute>> _routes(
+    List<LatLng> points, {
+    bool alternatives = false,
+    bool avoidTolls = false,
+  }) async {
     final path =
         '/directions/v5/mapbox/driving-traffic/${points.map(_lngLat).join(';')}';
     final json = await _getJson(Uri.https(_host, path, {
-      'alternatives': 'false',
+      'alternatives': alternatives.toString(),
+      if (avoidTolls) 'exclude': 'toll',
       'geometries': 'geojson',
       'overview': 'full',
       'steps': 'true',
@@ -237,7 +277,16 @@ class MapboxApi {
         (json['message'] ?? 'Laluan tidak dijumpai.').toString(),
       );
     }
-    final r = routes.first as Map;
+    final result = routes
+        .whereType<Map>()
+        .map((route) => parseRoute(route, avoidTolls: avoidTolls))
+        .where((route) => route.coordinates.length > 1)
+        .toList();
+    if (result.isEmpty) throw MapboxApiException('Laluan tidak dijumpai.');
+    return result;
+  }
+
+  static NavRoute parseRoute(Map r, {bool avoidTolls = false}) {
 
     // Garisan laluan.
     final coordinates = <LatLng>[];
@@ -257,6 +306,10 @@ class MapboxApi {
 
     final steps = <NavStep>[];
     final incidents = <RouteIncident>[];
+    final signals = <(double, double), LatLng>{};
+    var hasToll = false;
+    final tollPlazas = <String?>[];
+    LatLng? previousPlaza;
     final legs = r['legs'];
     var legStart = 0;
 
@@ -270,6 +323,43 @@ class MapboxApi {
         final legSteps = <NavStep>[];
         if (leg['steps'] is List) {
           for (final s in leg['steps'] as List) {
+            if (s is Map && s['intersections'] is List) {
+              final intersections = (s['intersections'] as List).whereType<Map>();
+              for (final intersection in intersections) {
+                final classes = intersection['classes'];
+                final collection = intersection['toll_collection'];
+                if (collection is Map ||
+                    (classes is List && classes.contains('toll'))) {
+                  hasToll = true;
+                }
+                final location = intersection['location'];
+                final point = location is List &&
+                        location.length >= 2 &&
+                        location[0] is num &&
+                        location[1] is num
+                    ? LatLng((location[1] as num).toDouble(),
+                        (location[0] as num).toDouble())
+                    : null;
+                if (collection is Map) {
+                  final name = collection['name'];
+                  final plaza = name is String && name.trim().isNotEmpty
+                      ? name.trim()
+                      : null;
+                  final duplicate = tollPlazas.isNotEmpty &&
+                      tollPlazas.last == plaza &&
+                      point != null &&
+                      previousPlaza != null &&
+                      distanceBetween(previousPlaza, point) < 300;
+                  if (!duplicate) {
+                    tollPlazas.add(plaza);
+                    previousPlaza = point;
+                  }
+                }
+                if (intersection['traffic_signal'] == true && point != null) {
+                  signals[(point.lat, point.lng)] = point;
+                }
+              }
+            }
             final step = _parseStep(s, waypoint: !isLastLeg);
             if (step != null) legSteps.add(step);
           }
@@ -335,10 +425,14 @@ class MapboxApi {
       congestion: congestion,
       maxSpeedKmh: maxSpeed,
       incidents: incidents,
+      trafficSignals: signals.values.toList(),
+      hasToll: hasToll,
+      tollPlazas: tollPlazas,
+      avoidTolls: avoidTolls,
     );
   }
 
-  NavStep? _parseStep(Object? s, {required bool waypoint}) {
+  static NavStep? _parseStep(Object? s, {required bool waypoint}) {
     if (s is! Map || s['maneuver'] is! Map) return null;
     final m = s['maneuver'] as Map;
     final loc = m['location'];
@@ -351,8 +445,11 @@ class MapboxApi {
     // Lorong di persimpangan gerakan ini.
     final lanes = <LaneInfo>[];
     final inters = s['intersections'];
-    if (inters is List && inters.isNotEmpty && inters.first is Map) {
-      final rawLanes = (inters.first as Map)['lanes'];
+    final junction = inters is List && inters.isNotEmpty && inters.first is Map
+        ? inters.first as Map
+        : null;
+    if (junction != null) {
+      final rawLanes = junction['lanes'];
       if (rawLanes is List) {
         for (final l in rawLanes) {
           if (l is! Map) continue;
@@ -360,8 +457,9 @@ class MapboxApi {
           lanes.add(LaneInfo(
             indications: ind is List
                 ? ind.map((e) => e.toString()).toList()
-                : const ['straight'],
-            valid: l['valid'] == true || l['active'] == true,
+                : const [],
+            valid: l['valid'] == true,
+            active: l['active'] == true,
             validIndication: l['valid_indication']?.toString(),
           ));
         }
@@ -383,6 +481,7 @@ class MapboxApi {
       waypointArrival: waypoint && type == 'arrive',
       destinations: _joinText(s['destinations']),
       exitNumber: _firstExit(s['exits']),
+      trafficSignal: junction?['traffic_signal'] == true,
     );
   }
 

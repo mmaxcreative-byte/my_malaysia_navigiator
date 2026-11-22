@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-/// Lukis ikon anak panah navigasi (seperti Waze/Google Maps) sebagai PNG,
+/// Lukis ikon anak panah navigasi sebagai PNG,
 /// untuk dijadikan ikon lokasi di peta.
 Future<Uint8List?> buildArrowPuck({
   int size = 72,
-  ui.Color fill = const ui.Color(0xFF1A73E8),
+  ui.Color fill = const ui.Color(0xFF087FE2),
 }) async {
   try {
     final s = size.toDouble();
@@ -36,9 +36,18 @@ Future<Uint8List?> buildArrowPuck({
         ..strokeJoin = ui.StrokeJoin.round,
     );
 
-    final image = await recorder.endRecording().toImage(size, size);
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    return data?.buffer.asUint8List();
+    final picture = recorder.endRecording();
+    try {
+      final image = await picture.toImage(size, size);
+      try {
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        return data?.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      picture.dispose();
+    }
   } catch (_) {
     return null;
   }
