@@ -53,7 +53,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // Peta
   mb.MapboxMap? _map;
   mb.PolylineAnnotationManager? _lineManager;
-  mb.CircleAnnotationManager? _markerManager;
+  mb.CircleAnnotationManager? _stopManager;
+  mb.PointAnnotationManager? _destinationManager;
+  Future<Uint8List?>? _destinationIcon;
+  Future<void> _markerDrawing = Future<void>.value();
   mb.CircleAnnotationManager? _fuelManager;
   mb.PointAnnotationManager? _signalManager;
   Future<Uint8List?>? _signalIcon;
@@ -311,8 +314,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
     try {
       _lineManager = await map.annotations.createPolylineAnnotationManager();
       _fuelManager = await map.annotations.createCircleAnnotationManager();
-      _markerManager = await map.annotations.createCircleAnnotationManager();
+      _stopManager = await map.annotations.createCircleAnnotationManager();
       _signalManager = await map.annotations.createPointAnnotationManager();
+      _destinationManager = await map.annotations.createPointAnnotationManager();
+      await _destinationManager?.setIconAllowOverlap(true);
+      await _destinationManager?.setIconIgnorePlacement(true);
     } catch (_) {}
     try {
       // Buang pembaris jarak di atas kiri (tidak berguna semasa memandu).
@@ -320,6 +326,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     } catch (_) {}
     await _enablePuck();
     await _refreshRouteDrawing();
+    await _drawMarkers();
     final pos = _myPos;
     if (pos != null) await _flyTo(pos, zoom: 15);
   }
@@ -428,7 +435,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       case 'severe':
         return _night ? 0xFFFF4E9B : 0xFF8B0000;
       default:
-        return _night ? 0xFF63EDFF : 0xFF00A5D6;
+        return _night ? 0xFFFFE061 : 0xFF00A5D6;
     }
   }
 
@@ -480,9 +487,41 @@ class _NavigationScreenState extends State<NavigationScreen> {
       paint.color = colors[i];
       canvas.drawCircle(Offset(14, 8 + i * 6.0), 2, paint);
     }
-    final picture = recorder.endRecording();
+    return _encodeMarker(recorder.endRecording(), size, size);
+  }
+
+  Future<Uint8List?> _makeDestinationIcon() {
+    const width = 48;
+    const height = 58;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final pin = Path()
+      ..moveTo(24, 55)
+      ..cubicTo(18, 48, 5, 33, 5, 23)
+      ..cubicTo(5, 12, 13, 4, 24, 4)
+      ..cubicTo(35, 4, 43, 12, 43, 23)
+      ..cubicTo(43, 33, 30, 48, 24, 55)
+      ..close();
+    canvas.drawPath(pin, Paint()..color = const Color(0xFFD62036));
+    canvas.drawPath(
+      pin,
+      Paint()
+        ..color = const Color(0xFFFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.drawCircle(
+      const Offset(24, 23),
+      6.5,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    return _encodeMarker(recorder.endRecording(), width, height);
+  }
+
+  Future<Uint8List?> _encodeMarker(ui.Picture picture, int width, int height) async {
     try {
-      final image = await picture.toImage(size, size);
+      final image = await picture.toImage(width, height);
       try {
         return (await image.toByteData(format: ui.ImageByteFormat.png))
             ?.buffer.asUint8List();
@@ -522,7 +561,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
         // Cahaya lembut di sekeliling laluan.
         mb.PolylineAnnotationOptions(
           geometry: all,
-          lineColor: 0xFF00E5FF,
+          lineColor: _night ? 0xFFFFE061 : 0xFF00E5FF,
           lineWidth: 22,
           lineOpacity: _night ? 0.4 : 0.18,
           lineSortKey: 1,
@@ -531,9 +570,9 @@ class _NavigationScreenState extends State<NavigationScreen> {
         // Garis tepi memisahkan laluan daripada peta.
         mb.PolylineAnnotationOptions(
           geometry: all,
-          lineColor: _night ? 0xFFDAF8FF : 0xFF005A73,
+          lineColor: _night ? 0xFFFFF3B4 : 0xFF005A73,
           lineSortKey: 2,
-          lineWidth: 13,
+          lineWidth: _night ? 15 : 13,
         ),
       ];
 
@@ -548,7 +587,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             geometry: line(coords.sublist(start, i + 1)),
             lineColor: _congestionColor(level(start)),
             lineSortKey: 3,
-            lineWidth: 8,
+            lineWidth: _night ? 10 : 8,
           ));
           start = i;
         }
@@ -557,32 +596,42 @@ class _NavigationScreenState extends State<NavigationScreen> {
     } catch (_) {}
   }
 
-  Future<void> _drawMarkers() async {
-    final manager = _markerManager;
-    if (manager == null) return;
-    try {
-      await manager.deleteAll();
-      final dest = _destination;
-      if (dest != null) {
-        await manager.create(mb.CircleAnnotationOptions(
-          geometry: _pt(dest.location),
-          circleColor: 0xFFE53935,
-          circleRadius: 10,
-          circleStrokeColor: 0xFFFFFFFF,
-          circleStrokeWidth: 3,
-        ));
-      }
-      final stop = _stop;
-      if (stop != null) {
-        await manager.create(mb.CircleAnnotationOptions(
-          geometry: _pt(stop.location),
-          circleColor: 0xFFF57C00,
-          circleRadius: 9,
-          circleStrokeColor: 0xFFFFFFFF,
-          circleStrokeWidth: 3,
-        ));
-      }
-    } catch (_) {}
+  Future<void> _drawMarkers() {
+    _markerDrawing = _markerDrawing.then((_) async {
+      if (!mounted) return;
+      final destinationManager = _destinationManager;
+      final stopManager = _stopManager;
+      try {
+        await destinationManager?.deleteAll();
+        final dest = _destination;
+        if (destinationManager != null && dest != null) {
+          final pin = await (_destinationIcon ??= _makeDestinationIcon());
+          if (pin != null && mounted && _destination == dest) {
+            await destinationManager.create(mb.PointAnnotationOptions(
+              geometry: _pt(dest.location),
+              image: pin,
+              iconAnchor: mb.IconAnchor.BOTTOM,
+              iconSize: 0.8,
+            ));
+          }
+        }
+      } catch (_) {}
+      if (!mounted) return;
+      try {
+        await stopManager?.deleteAll();
+        final stop = _stop;
+        if (stopManager != null && stop != null) {
+          await stopManager.create(mb.CircleAnnotationOptions(
+            geometry: _pt(stop.location),
+            circleColor: 0xFFF57C00,
+            circleRadius: 9,
+            circleStrokeColor: 0xFFFFFFFF,
+            circleStrokeWidth: 3,
+          ));
+        }
+      } catch (_) {}
+    });
+    return _markerDrawing;
   }
 
   Future<void> _drawFuelMarkers() async {
@@ -1308,7 +1357,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       return PanelCard(
         child: Row(
           children: [
-            const Icon(Icons.flag, color: kNavGreen, size: 36),
+            const Icon(Icons.location_on, color: Color(0xFFD62036), size: 36),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
