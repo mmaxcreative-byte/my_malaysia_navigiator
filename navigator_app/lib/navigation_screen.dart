@@ -28,6 +28,16 @@ const Duration _rerouteCooldown = Duration(seconds: 15);
 /// Pilihan tema: ikut waktu, sentiasa siang, sentiasa malam.
 enum ThemePref { auto, day, night }
 
+enum NavigationView {
+  standard('Paparan 1 · Standard', 0),
+  closer('Paparan 2 · Lebih dekat', 0.6);
+
+  const NavigationView(this.label, this.zoomOffset);
+
+  final String label;
+  final double zoomOffset;
+}
+
 class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key});
 
@@ -53,6 +63,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   ThemePref _themePref = ThemePref.auto;
   late bool _night;
   bool _show3d = true;
+  NavigationView _navigationView = NavigationView.standard;
   Uint8List? _arrowPuck;
   Timer? _themeTimer;
 
@@ -359,11 +370,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
             right: 0)
         : mb.MbxEdgeInsets(
             top: _screen.height * 0.40, left: 0, bottom: 0, right: 0);
+    final baseZoom = _speedKmh > 80 ? 15.5 : (_speedKmh > 50 ? 16.3 : 17.0);
     try {
       await map.easeTo(
         mb.CameraOptions(
           center: _pt(pos),
-          zoom: _speedKmh > 80 ? 15.5 : (_speedKmh > 50 ? 16.3 : 17),
+          zoom: baseZoom + _navigationView.zoomOffset,
           pitch: 55,
           bearing: _heading,
           padding: padding,
@@ -1420,6 +1432,30 @@ class _NavigationScreenState extends State<NavigationScreen> {
               ),
               if (_navigating) const SizedBox(height: 10),
             ],
+            if (_navigating) ...[
+              Material(
+                elevation: 4,
+                shape: const CircleBorder(),
+                color: Theme.of(context).colorScheme.surface,
+                child: PopupMenuButton<NavigationView>(
+                  tooltip: 'Tukar paparan navigasi',
+                  initialValue: _navigationView,
+                  onSelected: _setNavigationView,
+                  icon: Icon(_navigationView == NavigationView.closer
+                      ? Icons.zoom_in
+                      : Icons.layers_outlined),
+                  itemBuilder: (_) => [
+                    for (final view in NavigationView.values)
+                      CheckedPopupMenuItem(
+                        value: view,
+                        checked: _navigationView == view,
+                        child: Text(view.label),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             if (_navigating)
               SpeedBadge(speedKmh: _speedKmh, limitKmh: _limitKmh),
           ],
@@ -1428,7 +1464,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
     );
   }
 
-  /// Tetapan: tema, suara, bangunan 3D.
+  void _setNavigationView(NavigationView view) {
+    setState(() {
+      _navigationView = view;
+      if (_navigating) _followUser = true;
+    });
+    if (_navigating) unawaited(_followCamera());
+  }
+
+  /// Tetapan peta dan pandangan semasa navigasi.
   Future<void> _openSettings() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -1460,6 +1504,24 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           setState(() => _themePref = t);
                           setSheet(() {});
                           _applyTheme();
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('Paparan navigasi'),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final view in NavigationView.values)
+                      ChoiceChip(
+                        label: Text(view.label),
+                        selected: _navigationView == view,
+                        onSelected: (_) {
+                          _setNavigationView(view);
+                          setSheet(() {});
                         },
                       ),
                   ],
