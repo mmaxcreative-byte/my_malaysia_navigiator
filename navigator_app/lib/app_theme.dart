@@ -9,18 +9,36 @@ bool isNightHour([DateTime? now]) {
   return h < 7 || h >= 19;
 }
 
-final ThemeData lightTheme = ThemeData(
-  useMaterial3: true,
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: const Color(0xFF1A73E8),
-    brightness: Brightness.light,
-  ),
-);
+ThemeData _navigationTheme(Brightness brightness) {
+  final isDark = brightness == Brightness.dark;
+  final scheme =
+      ColorScheme.fromSeed(
+        seedColor: const Color(0xFF1765C1),
+        brightness: brightness,
+      ).copyWith(
+        surface: isDark ? const Color(0xFF152338) : const Color(0xFFF9FBFF),
+        surfaceContainerHigh: isDark
+            ? const Color(0xFF202F47)
+            : const Color(0xFFEFF4FC),
+      );
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      clipBehavior: Clip.antiAlias,
+    ),
+  );
+}
 
-final ThemeData darkTheme = ThemeData(
-  useMaterial3: true,
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: const Color(0xFF4FC3F7),
-    brightness: Brightness.dark,
-  ),
-);
+final ThemeData lightTheme = _navigationTheme(Brightness.light);
+final ThemeData darkTheme = _navigationTheme(Brightness.dark);

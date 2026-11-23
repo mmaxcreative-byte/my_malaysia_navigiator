@@ -34,7 +34,10 @@ class PanelCard extends StatelessWidget {
       elevation: 6,
       shadowColor: const Color(0x380A2033),
       color: color ?? scheme.surface,
-      borderRadius: BorderRadius.circular(20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.65)),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Padding(padding: padding, child: child),
     );
@@ -61,7 +64,9 @@ class MapRoundButton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       elevation: 4,
-      shape: const CircleBorder(),
+      shape: CircleBorder(
+        side: BorderSide(color: active ? scheme.primary : scheme.outlineVariant),
+      ),
       color: active ? scheme.primary : scheme.surface,
       child: IconButton(
         tooltip: tooltip,
@@ -380,16 +385,26 @@ class RoutePreviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.place, color: scheme.error, size: 20),
-              const SizedBox(width: 6),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SizedBox.square(
+                  dimension: 32,
+                  child: Icon(Icons.place, color: scheme.onPrimaryContainer, size: 19),
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   destinationName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 14,
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
                   ),
                 ),
               ),
@@ -919,21 +934,15 @@ class TripBar extends StatelessWidget {
     return Material(
       elevation: 10,
       color: kNavPanel,
-      borderRadius: BorderRadius.circular(compact ? 14 : 20),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(compact ? 16 : 22),
+        side: const BorderSide(color: Color(0xFF40546F)),
+      ),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(compact ? 12 : 18, 6, 6, compact ? 6 : 10),
+        padding: EdgeInsets.fromLTRB(compact ? 12 : 18, 10, 6, compact ? 8 : 12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 4),
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
             Row(
               children: [
                 Expanded(

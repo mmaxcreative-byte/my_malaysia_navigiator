@@ -1151,16 +1151,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _landscape = size.width > size.height;
     _panelWidth = _landscape ? math.min(320.0, size.width * 0.34) : 0.0;
 
+    final canReturnToSearch = _destination != null ||
+        _searchCtrl.text.isNotEmpty ||
+        _fuelResults.isNotEmpty;
     return PopScope<void>(
-      canPop: false,
+      canPop: !canReturnToSearch,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (_destination != null ||
-            _searchCtrl.text.isNotEmpty ||
-            _searchFocus.hasFocus ||
-            _fuelResults.isNotEmpty) {
-          unawaited(_cancelRoute());
-        }
+        if (!didPop && canReturnToSearch) unawaited(_cancelRoute());
       },
       child: Scaffold(
         resizeToAvoidBottomInset: false,
@@ -1584,10 +1581,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Material(
-          elevation: 6,
-          color: scheme.surface,
-          borderRadius: BorderRadius.circular(28),
+        PanelCard(
+          padding: EdgeInsets.zero,
           child: TextField(
             controller: _searchCtrl,
             focusNode: _searchFocus,
@@ -1598,9 +1593,24 @@ class _NavigationScreenState extends State<NavigationScreen> {
             },
             style: TextStyle(color: scheme.onSurface, fontSize: 16),
             decoration: InputDecoration(
-              hintText: 'Cari destinasi (cth: KLCC, Mid Valley)',
-              hintStyle: TextStyle(color: scheme.onSurfaceVariant),
-              prefixIcon: Icon(Icons.search, color: scheme.primary),
+              hintText: 'Cari destinasi',
+              hintStyle: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+              prefixIcon: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SizedBox.square(
+                    dimension: 36,
+                    child: Icon(Icons.search, color: scheme.onPrimaryContainer),
+                  ),
+                ),
+              ),
               suffixIcon: _searching
                   ? const Padding(
                       padding: EdgeInsets.all(14),
@@ -1613,6 +1623,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   : (_searchCtrl.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.close),
+                          tooltip: 'Kosongkan carian',
                           onPressed: _cancelRoute,
                         )
                       : null),
@@ -1627,10 +1638,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: ActionChip(
-                elevation: 3,
+                elevation: 2,
                 backgroundColor: scheme.surface,
-                avatar: const Icon(Icons.local_gas_station,
-                    color: Color(0xFFF57C00)),
+                side: BorderSide(color: scheme.outlineVariant),
+                avatar: Icon(Icons.local_gas_station, color: scheme.primary),
                 label: const Text('Stesen minyak berdekatan'),
                 onPressed: _findFuel,
               ),
