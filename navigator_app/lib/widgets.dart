@@ -247,56 +247,62 @@ class RouteOptionsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListView(
-      shrinkWrap: true,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      children: [
-        Row(
+    return SafeArea(
+      top: false,
+      child: Scrollbar(
+        child: ListView(
+          primary: true,
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
-            IconButton(
-              tooltip: 'Kembali ke carian',
-              onPressed: () => Navigator.maybePop(context),
-              icon: const Icon(Icons.arrow_back),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Kembali ke carian',
+                  onPressed: () => Navigator.maybePop(context),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                Expanded(
+                  child: Text('Pilihan laluan', style: theme.textTheme.titleLarge),
+                ),
+              ],
             ),
-            Expanded(
-              child: Text('Pilihan laluan', style: theme.textTheme.titleLarge),
-            ),
+            if (options.length == 1)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('Hanya satu laluan ditemukan untuk destinasi ini.'),
+              ),
+            const SizedBox(height: 12),
+            for (final (index, route) in options.indexed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  tileColor: theme.colorScheme.surfaceContainerHigh,
+                  selectedTileColor: theme.colorScheme.primaryContainer,
+                  selected: route == selected,
+                  leading: Icon(route == selected ? Icons.check_circle : Icons.route),
+                  title: Text(route.avoidTolls
+                      ? 'Laluan tanpa tol'
+                      : route.hasToll
+                          ? 'Laluan ${index + 1} · Bertol'
+                          : 'Laluan ${index + 1}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${formatDuration(route.duration)} • '
+                          '${formatDistance(route.distance)}'),
+                      TollLabel(route: route, quote: quotes[route]),
+                    ],
+                  ),
+                  onTap: () => Navigator.pop(context, route),
+                ),
+              ),
           ],
         ),
-        if (options.length == 1)
-          const Padding(
-            padding: EdgeInsets.only(top: 4),
-            child: Text('Hanya satu laluan ditemukan untuk destinasi ini.'),
-          ),
-        const SizedBox(height: 12),
-        for (final (index, route) in options.indexed)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              tileColor: theme.colorScheme.surfaceContainerHigh,
-              selectedTileColor: theme.colorScheme.primaryContainer,
-              selected: route == selected,
-              leading: Icon(route == selected ? Icons.check_circle : Icons.route),
-              title: Text(route.avoidTolls
-                  ? 'Laluan tanpa tol'
-                  : route.hasToll
-                      ? 'Laluan ${index + 1} · Bertol'
-                      : 'Laluan ${index + 1}'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('${formatDuration(route.duration)} • '
-                      '${formatDistance(route.distance)}'),
-                  TollLabel(route: route, quote: quotes[route]),
-                ],
-              ),
-              onTap: () => Navigator.pop(context, route),
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

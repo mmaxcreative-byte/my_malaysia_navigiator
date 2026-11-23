@@ -422,13 +422,13 @@ class _NavigationScreenState extends State<NavigationScreen> {
   int _congestionColor(String level) {
     switch (level) {
       case 'moderate':
-        return 0xFFFFA000;
+        return _night ? 0xFFFFBD52 : 0xFFFFA000;
       case 'heavy':
-        return 0xFFE53935;
+        return _night ? 0xFFFF7262 : 0xFFE53935;
       case 'severe':
-        return 0xFF8B0000;
+        return _night ? 0xFFFF4E9B : 0xFF8B0000;
       default:
-        return _night ? 0xFF00E5FF : 0xFF00A5D6;
+        return _night ? 0xFF63EDFF : 0xFF00A5D6;
     }
   }
 
@@ -514,7 +514,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
             if (alternative != route)
               mb.PolylineAnnotationOptions(
                 geometry: line(alternative.coordinates),
-                lineColor: _night ? 0xFF7993AE : 0xFF6D839F,
+                lineColor: _night ? 0xFFACBFD4 : 0xFF6D839F,
+                lineSortKey: 0,
                 lineWidth: 5,
                 lineOpacity: 0.8,
               ),
@@ -523,13 +524,15 @@ class _NavigationScreenState extends State<NavigationScreen> {
           geometry: all,
           lineColor: 0xFF00E5FF,
           lineWidth: 22,
-          lineOpacity: _night ? 0.28 : 0.18,
+          lineOpacity: _night ? 0.4 : 0.18,
+          lineSortKey: 1,
           lineBlur: 6,
         ),
-        // Garis tepi gelap.
+        // Garis tepi memisahkan laluan daripada peta.
         mb.PolylineAnnotationOptions(
           geometry: all,
-          lineColor: _night ? 0xFF003B4D : 0xFF005A73,
+          lineColor: _night ? 0xFFDAF8FF : 0xFF005A73,
+          lineSortKey: 2,
           lineWidth: 13,
         ),
       ];
@@ -544,6 +547,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           options.add(mb.PolylineAnnotationOptions(
             geometry: line(coords.sublist(start, i + 1)),
             lineColor: _congestionColor(level(start)),
+            lineSortKey: 3,
             lineWidth: 8,
           ));
           start = i;
@@ -896,6 +900,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
     final options = _routeOptions;
     final chosen = await showModalBottomSheet<NavRoute>(
       context: context,
+      isScrollControlled: true,
       useSafeArea: true,
       isDismissible: false,
       enableDrag: false,

@@ -137,6 +137,61 @@ void main() {
     expect(find.text('Bertol • Caj tidak tersedia'), findsOneWidget);
   });
 
+  testWidgets('laluan terakhir boleh dipilih di atas bar bawah telefon', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(360, 420);
+    tester.view.padding = const FakeViewPadding(bottom: 36);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetPadding);
+    final routes = List.generate(
+      8,
+      (index) => NavRoute(
+        distance: 12000,
+        duration: 900,
+        coordinates: const [],
+        steps: const [],
+      ),
+    );
+    NavRoute? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                selected = await showModalBottomSheet<NavRoute>(
+                  context: context,
+                  useSafeArea: true,
+                  isScrollControlled: true,
+                  builder: (_) => RouteOptionsSheet(
+                    options: routes,
+                    selected: routes.first,
+                    quotes: const {},
+                  ),
+                );
+              },
+              child: const Text('Buka'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Buka'));
+    await tester.pumpAndSettle();
+    final last = find.widgetWithText(ListTile, 'Laluan 8');
+    await tester.scrollUntilVisible(last, 220);
+    await tester.drag(find.byType(ListView), const Offset(0, -180));
+    await tester.pumpAndSettle();
+    expect(tester.getBottomRight(last).dy, lessThanOrEqualTo(384));
+    await tester.tap(last);
+    await tester.pumpAndSettle();
+    expect(selected, same(routes.last));
+    expect(tester.takeException(), isNull);
+  });
+
   test('jumlah tol Kelas 1 menggabungkan kadar rata dan masuk-keluar', () {
     final table = TollRates.parseTable({
       'routes': [
